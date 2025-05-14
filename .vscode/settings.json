@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "*.embeddedhtml": "html",
+        "optional": "cpp"
+    },
+    "cmake.sourceDirectory": "D:/calonaplikasi/calonaplikasi/windows"
+}
