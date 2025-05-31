@@ -44,22 +44,46 @@ class _CreatorPageState extends State<CreatorPage> {
     if (index == 0) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const DashboardPage()),
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => const DashboardPage(),
+          transitionDuration: const Duration(milliseconds: 400),
+          transitionsBuilder: (_, animation, __, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+        ),
       );
     } else if (index == 1) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const ShopPage()),
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => const ShopPage(),
+          transitionDuration: const Duration(milliseconds: 400),
+          transitionsBuilder: (_, animation, __, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+        ),
       );
     } else if (index == 3) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const HistoryPage()),
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => const HistoryPage(),
+          transitionDuration: const Duration(milliseconds: 400),
+          transitionsBuilder: (_, animation, __, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+        ),
       );
     } else if (index == 4) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const WishlistPage()),
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => const WishlistPage(),
+          transitionDuration: const Duration(milliseconds: 400),
+          transitionsBuilder: (_, animation, __, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+        ),
       );
     }
   }
@@ -364,9 +388,14 @@ class _CreatorPageState extends State<CreatorPage> {
   void _navigateToProducts(BuildContext context, Map<String, dynamic> creator) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder:
-            (context) => CreatorProductsPage(creatorId: creator['id_sellers']),
+      PageRouteBuilder(
+        pageBuilder: (_, animation, __) {
+          return FadeTransition(
+            opacity: animation,
+            child: CreatorProductsPage(creatorId: creator['id_sellers']),
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 400),
       ),
     );
   }
@@ -453,12 +482,37 @@ class _CreatorProductsPageState extends State<CreatorProductsPage> {
                       (context, index) => _buildProductCard(_products[index]),
                 ),
       ),
+      bottomNavigationBar: BottomNavBar(
+        selectedIndex: 2, // tetap di posisi Creator
+        onItemTapped: (index) {
+          if (index == 0) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const DashboardPage()),
+            );
+          } else if (index == 1) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const ShopPage()),
+            );
+          } else if (index == 3) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const HistoryPage()),
+            );
+          } else if (index == 4) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const WishlistPage()),
+            );
+          }
+        },
+      ),
     );
   }
 
   Widget _buildProductCard(Map<String, dynamic> product) {
     final productId = product['id_product'];
-
     final List<Color> bgColors = [
       Colors.red[50]!,
       Colors.blue[50]!,
@@ -468,7 +522,6 @@ class _CreatorProductsPageState extends State<CreatorProductsPage> {
       Colors.teal[50]!,
     ];
     final bgColor = bgColors[productId % bgColors.length];
-
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
