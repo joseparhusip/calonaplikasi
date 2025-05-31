@@ -25,6 +25,11 @@ dependencies:
   intl: ^0.18.1  # Add this line
   youtube_player_flutter: ^9.1.1
   image_picker: ^0.8.7+3 # atau versi stabil lainnya
+  lottie: ^2.6.3
+  shimmer: ^2.0.0
+  cached_network_image: ^3.2.1
+  flutter_staggered_animations: ^1.1.0
+  flutter_rating_bar: ^4.0.1
 
 # Dev dependencies
 dev_dependencies:
@@ -38,6 +43,7 @@ flutter:
 
   # Menambahkan aset gambar
   assets:
+    - assets/images/
     - assets/img/digimize_logo.png
     - assets/img/shopping_bag.png
     - assets/img/palette_brush.png
@@ -54,6 +60,8 @@ flutter:
     - assets/shop/graphicdesign.png
     - assets/shop/designuiux.png
     - assets/shop/posterdigital.png
+    - assets/images/default_profile.png
+    
 
   # Menambahkan font kustom (jika ada)
   # fonts:

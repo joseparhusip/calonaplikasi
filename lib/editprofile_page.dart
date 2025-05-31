@@ -1,12 +1,14 @@
+// editprofile_page.dart (no major changes needed, just confirming your existing code is correct)
 import 'package:flutter/material.dart';
 import 'dart:developer' as developer;
-import 'apiservice.dart'; // Pastikan file ini berada di folder yang sama atau path benar
+import 'apiservice.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'profile_page.dart';
 
 class EditProfilePage extends StatefulWidget {
   final Map<String, dynamic>? initialData;
-
   const EditProfilePage({super.key, this.initialData});
-
   @override
   State<EditProfilePage> createState() => _EditProfilePageState();
 }
@@ -16,21 +18,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
+  String selectedGender = 'laki-laki';
 
-  String selectedGender = 'tidak ingin menyebutkan';
-  final List<String> genderOptions = [
-    'laki-laki',
-    'perempuan',
-    'lain-lain',
-    'non-biner',
-    'transgender',
-    'tidak ingin menyebutkan',
-  ];
+  final List<String> genderOptions = ['laki-laki', 'perempuan'];
 
   bool isLoading = true;
   bool isSaving = false;
   bool isAuthError = false;
   String? errorMessage;
+
+  File? _profileImage;
 
   @override
   void initState() {
@@ -44,9 +41,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       errorMessage = null;
       isAuthError = false;
     });
-
     try {
-      // Cek status login terlebih dahulu
       bool loggedIn = await ApiService.isLoggedIn();
       if (!loggedIn) {
         setState(() {
@@ -57,8 +52,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
         _showLoginRequiredDialog();
         return;
       }
-
-      // Jika ada data awal yang diberikan, gunakan itu
       if (widget.initialData != null) {
         _setUserData(widget.initialData!);
         setState(() {
@@ -66,14 +59,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
         });
         return;
       }
-
-      // Jika tidak, ambil data dari API
       final profileData = await ApiService.getProfileForEdit();
-
-      // Tambahkan log untuk melihat struktur data
       developer.log('Profile data received: $profileData');
-
-      // Cek apakah ada error autentikasi
       if (profileData['auth_error'] == true) {
         setState(() {
           isAuthError = true;
@@ -82,7 +69,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
         _showLoginRequiredDialog();
         return;
       }
-
       if (profileData['status'] == 'success' && profileData['data'] != null) {
         _setUserData(profileData['data']);
       } else {
@@ -108,23 +94,23 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _phoneController.text = userData['no_hp'] ?? '';
     _emailController.text = userData['email'] ?? '';
 
-    // Set gender jika tersedia
     if (userData['gender'] != null &&
         userData['gender'].toString().isNotEmpty) {
-      setState(() {
-        selectedGender = userData['gender'];
-      });
+      String userGender = userData['gender'].toString().toLowerCase();
+      if (genderOptions.contains(userGender)) {
+        setState(() {
+          selectedGender = userGender;
+        });
+      } else {
+        setState(() {
+          selectedGender = 'laki-laki';
+        });
+      }
     }
-
-    // Tambahkan log untuk debug
-    developer.log(
-      'Loaded user data: nama=${_nameController.text}, username=${_usernameController.text}, gender=$selectedGender',
-    );
   }
 
   Future<void> _showLoginRequiredDialog() async {
     if (!mounted) return;
-
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -141,10 +127,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(); // Tutup dialog
-                Navigator.of(context).pop(); // Kembali ke halaman sebelumnya
-                // Opsional: Navigasi ke halaman login
-                // Navigator.of(context).pushReplacementNamed('/login');
+                Navigator.of(context).pop();
+                Navigator.of(context).pop();
               },
               child: const Text(
                 'OK',
@@ -157,8 +141,18 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      setState(() {
+        _profileImage = File(pickedFile.path);
+      });
+    }
+  }
+
   Future<void> _saveProfile() async {
-    // Jika sudah terdeteksi error autentikasi, tampilkan dialog dan keluar
     if (isAuthError) {
       _showLoginRequiredDialog();
       return;
@@ -170,17 +164,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
     });
 
     try {
-      // Validasi input
       if (_nameController.text.trim().isEmpty) {
         throw Exception('Nama tidak boleh kosong');
       }
-
       if (_phoneController.text.trim().isEmpty) {
         throw Exception('Nomor telepon tidak boleh kosong');
       }
-
       if (_emailController.text.trim().isNotEmpty) {
-        // Validasi email sederhana
         bool emailValid = RegExp(
           r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,}$',
         ).hasMatch(_emailController.text);
@@ -189,27 +179,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
         }
       }
 
-      // Simpan data yang akan dikirim dalam variable terpisah untuk debugging
-      final nama = _nameController.text.trim();
-      final gender = selectedGender;
-      final noHp = _phoneController.text.trim();
-      final email = _emailController.text.trim();
-
-      developer.log(
-        'Mengirim data: nama=$nama, gender=$gender, noHp=$noHp, email=$email',
-      );
-
-      // Panggil API service dengan mekanisme refresh token
       final response = await ApiService.updateProfileWithRefresh(
-        nama: nama,
-        gender: gender,
-        noHp: noHp,
-        email: email,
+        nama: _nameController.text.trim(),
+        gender: selectedGender,
+        noHp: _phoneController.text.trim(),
+        email: _emailController.text.trim(),
+        profileImage: _profileImage,
       );
 
-      developer.log('Response dari API: $response');
+      developer.log('Update profile response: $response');
 
-      // Cek apakah ada error autentikasi
       if (response['auth_error'] == true) {
         setState(() {
           isAuthError = true;
@@ -220,68 +199,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
       }
 
       if (response['status'] == 'success') {
-        // Tampilkan dialog sukses
         if (mounted) {
-          showDialog(
-            context: context,
-            builder: (BuildContext context) {
-              return AlertDialog(
-                title: const Text('Sukses'),
-                content: const Text('Profil berhasil diperbarui'),
-                backgroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop(); // Tutup dialog
-                      Navigator.pop(
-                        context,
-                        true,
-                      ); // Kembali ke halaman sebelumnya dengan result=true
-                    },
-                    child: const Text(
-                      'OK',
-                      style: TextStyle(color: Color(0xFF4B4ACF)),
-                    ),
-                  ),
-                ],
-              );
-            },
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const ProfilePage()),
           );
         }
       } else {
-        // Tampilkan dialog error
-        if (mounted) {
-          showDialog(
-            context: context,
-            builder: (BuildContext context) {
-              return AlertDialog(
-                title: const Text('Gagal'),
-                content: Text(
-                  response['message'] ?? 'Gagal menyimpan perubahan',
-                ),
-                backgroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop(); // Tutup dialog
-                    },
-                    child: const Text(
-                      'OK',
-                      style: TextStyle(color: Color(0xFF4B4ACF)),
-                    ),
-                  ),
-                ],
-              );
-            },
-          );
-        }
-
         setState(() {
           errorMessage = response['message'] ?? 'Gagal menyimpan perubahan';
         });
@@ -291,36 +215,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
       setState(() {
         errorMessage = 'Terjadi kesalahan: ${e.toString()}';
       });
-
-      // Tampilkan dialog error
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              title: const Text('Gagal'),
-              content: Text(
-                errorMessage ?? 'Terjadi kesalahan saat menyimpan profil',
-              ),
-              backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop(); // Tutup dialog
-                  },
-                  child: const Text(
-                    'OK',
-                    style: TextStyle(color: Color(0xFF4B4ACF)),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      }
     } finally {
       setState(() {
         isSaving = false;
@@ -362,9 +256,50 @@ class _EditProfilePageState extends State<EditProfilePage> {
               : SingleChildScrollView(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // Error message jika ada
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        CircleAvatar(
+                          radius: 60,
+                          backgroundImage:
+                              _profileImage != null
+                                  ? FileImage(_profileImage!)
+                                  : const AssetImage(
+                                        "assets/images/default_profile.png",
+                                      )
+                                      as ImageProvider,
+                          child:
+                              _profileImage == null
+                                  ? const Icon(Icons.person, size: 50)
+                                  : null,
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withAlpha(76),
+                                  blurRadius: 4,
+                                  spreadRadius: 1,
+                                ),
+                              ],
+                            ),
+                            child: GestureDetector(
+                              onTap: _pickImage,
+                              child: const Icon(Icons.edit, size: 20),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
                     if (errorMessage != null && !isAuthError)
                       Container(
                         padding: const EdgeInsets.all(10),
@@ -386,13 +321,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
                           ],
                         ),
                       ),
-
-                    // Form fields
-                    const Text(
-                      'Nama Lengkap',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Nama Lengkap',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -410,18 +346,20 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-
-                    const Text(
-                      'Username',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Username',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
                     TextFormField(
                       controller: _usernameController,
-                      enabled: false, // Username tidak bisa diubah
+                      enabled: false,
                       decoration: InputDecoration(
                         hintText: 'Username',
                         filled: true,
@@ -436,12 +374,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-
-                    const Text(
-                      'Gender',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Gender',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -462,8 +402,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                 return DropdownMenuItem<String>(
                                   value: value,
                                   child: Text(
-                                    value,
-                                    style: const TextStyle(fontSize: 14),
+                                    value == 'laki-laki'
+                                        ? 'Laki-laki'
+                                        : 'Perempuan',
+                                    style: const TextStyle(fontSize: 16),
                                   ),
                                 );
                               }).toList(),
@@ -476,12 +418,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-
-                    const Text(
-                      'Nomor Telepon',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Nomor Telepon',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -500,12 +444,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-
-                    const Text(
-                      'Email',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Email',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -524,8 +470,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 32),
-
-                    // Tombol Simpan
                     SizedBox(
                       width: double.infinity,
                       height: 50,

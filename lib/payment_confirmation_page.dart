@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:image_picker/image_picker.dart';
+import 'apiservice.dart';
 
 void main() => runApp(const MyApp());
 
@@ -34,32 +33,20 @@ class _PaymentConfirmationPageState extends State<PaymentConfirmationPage> {
 
   Future<void> _fetchPaymentImage() async {
     try {
-      final response = await http.get(
-        Uri.parse('http://192.168.56.208/backend/shoppingcart.php'),
-      );
+      final response = await ApiService.getPaymentConfirmationData();
 
-      developer.log('Response status: ${response.statusCode}');
-      developer.log('Response body: ${response.body}');
+      developer.log('Response data: $response');
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-
-        if (data['status'] == 'success' && data['data'] != null) {
-          setState(() {
-            paymentImageUrl = data['data']['payment_image_url'];
-            _isLoading = false;
-          });
-          developer.log('Payment image URL: $paymentImageUrl');
-        } else {
-          setState(() {
-            _errorMessage =
-                data['message'] ?? "Gagal memuat gambar pembayaran.";
-            _isLoading = false;
-          });
-        }
+      if (response['status'] == 'success' && response['data'] != null) {
+        setState(() {
+          paymentImageUrl = response['data']['payment_image_url'];
+          _isLoading = false;
+        });
+        developer.log('Payment image URL: $paymentImageUrl');
       } else {
         setState(() {
-          _errorMessage = "Server error: ${response.statusCode}";
+          _errorMessage =
+              response['message'] ?? "Gagal memuat gambar pembayaran.";
           _isLoading = false;
         });
       }
@@ -75,6 +62,10 @@ class _PaymentConfirmationPageState extends State<PaymentConfirmationPage> {
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+
+    // Check if the widget is still mounted before using context
+    if (!mounted) return;
+
     if (image != null) {
       setState(() {
         _selectedImage = image;

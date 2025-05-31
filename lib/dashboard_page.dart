@@ -12,6 +12,7 @@ import 'wishlist_page.dart';
 import 'history_page.dart';
 import 'shop_page.dart';
 import 'creator_page.dart';
+import 'apiservice.dart';
 
 class DashboardPage extends StatefulWidget {
   final List<Map<String, dynamic>>? initialProducts;
@@ -113,7 +114,7 @@ class _DashboardPageState extends State<DashboardPage> {
     if (_fetchingCount > 0) return;
     _fetchingCount++;
     try {
-      String url = 'http://192.168.56.208/backend/dashboard.php';
+      String url = ApiService.dashboardUrl; // ← Gunakan dari ApiService
       if (userId != null) {
         url += '?user_id=$userId';
       }
@@ -130,6 +131,7 @@ class _DashboardPageState extends State<DashboardPage> {
         try {
           debugPrint('Response body received successfully');
           final Map<String, dynamic> responseData = json.decode(response.body);
+          debugPrint('Search Response Body: $responseData');
           if (responseData['status'] == 'success') {
             if (!mounted) return;
             setState(() {
@@ -199,7 +201,7 @@ class _DashboardPageState extends State<DashboardPage> {
     });
     try {
       String url =
-          'http://192.168.56.208/backend/dashboard.php?search=${Uri.encodeComponent(query)}';
+          '${ApiService.dashboardUrl}?search=${Uri.encodeComponent(query)}';
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getInt('user_id');
       if (userId != null) {
@@ -215,23 +217,30 @@ class _DashboardPageState extends State<DashboardPage> {
       );
       debugPrint('Search response status: ${response.statusCode}');
       if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = json.decode(response.body);
-        if (responseData['status'] == 'success') {
-          if (!mounted) return;
-          setState(() {
-            _filteredProducts = List<Map<String, dynamic>>.from(
-              responseData['data'],
-            );
-            _isLoading = false;
-          });
-        } else {
-          if (!mounted) return;
-          setState(() {
-            _filteredProducts = [];
-            _isLoading = false;
-          });
+        try {
+          final Map<String, dynamic> responseData = json.decode(response.body);
+          if (responseData['status'] == 'success' &&
+              responseData.containsKey('data')) {
+            setState(() {
+              _filteredProducts = List<Map<String, dynamic>>.from(
+                responseData['data'],
+              );
+              _isLoading = false;
+            });
+          } else {
+            setState(() {
+              _filteredProducts = [];
+              _errorMessage =
+                  responseData['message'] ?? 'Tidak ada hasil ditemukan';
+              _isLoading = false;
+            });
+          }
+        } catch (e) {
+          debugPrint("Error parsing JSON: $e");
+          _filterProductsLocally(query);
         }
       } else {
+        debugPrint("Server error: ${response.statusCode}");
         _filterProductsLocally(query);
       }
     } catch (e) {
@@ -243,19 +252,16 @@ class _DashboardPageState extends State<DashboardPage> {
   void _filterProductsLocally(String query) {
     if (!mounted) return;
     setState(() {
-      if (query.isEmpty) {
-        _filteredProducts = _products;
-      } else {
-        _filteredProducts =
-            _products
-                .where(
-                  (product) => product['nama_product']
-                      .toString()
-                      .toLowerCase()
-                      .contains(query.toLowerCase()),
-                )
-                .toList();
-      }
+      _filteredProducts =
+          _products
+              .where(
+                (product) => product['nama_product'
+                        'nama_toko']
+                    .toString()
+                    .toLowerCase()
+                    .contains(query.toLowerCase()),
+              )
+              .toList();
       _isLoading = false;
     });
   }
@@ -456,7 +462,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   border: Border.all(color: Colors.white, width: 2),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withAlpha(26),
                       blurRadius: 4,
                       offset: const Offset(0, 2),
                     ),
@@ -756,14 +762,6 @@ class _DashboardPageState extends State<DashboardPage> {
             },
           ),
         ),
-        const SizedBox(height: 30),
-        if (_userData != null)
-          Center(
-            child: Text(
-              'Berhasil Login dengan Username: ${_userData!['username']}',
-              style: TextStyle(color: Colors.grey, fontSize: 14),
-            ),
-          ),
         const SizedBox(height: 20),
       ],
     );
@@ -917,7 +915,7 @@ class _DashboardPageState extends State<DashboardPage> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '${product['ulasan']} ulasan',
+                          '${product['ulasan'] ?? 0} ulasan',
                           style: TextStyle(
                             fontSize: 10,
                             color: Colors.grey[600],

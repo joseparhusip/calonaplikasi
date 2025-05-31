@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'apiservice.dart'; // Pastikan path benar
+import 'dashboard_page.dart'; // Import halaman terkait
+import 'shop_page.dart';
+import 'history_page.dart';
+import 'wishlist_page.dart';
 
 class CreatorPage extends StatefulWidget {
   const CreatorPage({super.key});
@@ -14,7 +18,7 @@ class _CreatorPageState extends State<CreatorPage> {
   @override
   void initState() {
     super.initState();
-    _creatorsFuture = fetchCreators(); // Inisialisasi data creator
+    _creatorsFuture = fetchCreators();
   }
 
   Future<List<dynamic>> fetchCreators() async {
@@ -28,8 +32,36 @@ class _CreatorPageState extends State<CreatorPage> {
 
   Future<void> _refreshCreators() async {
     setState(() {
-      _creatorsFuture = fetchCreators(); // Refresh data
+      _creatorsFuture = fetchCreators();
     });
+  }
+
+  int get _selectedIndex => 2;
+
+  void _navigateToPage(int index) {
+    if (!mounted) return;
+    if (index == _selectedIndex) return;
+    if (index == 0) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const DashboardPage()),
+      );
+    } else if (index == 1) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const ShopPage()),
+      );
+    } else if (index == 3) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HistoryPage()),
+      );
+    } else if (index == 4) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const WishlistPage()),
+      );
+    }
   }
 
   @override
@@ -39,46 +71,60 @@ class _CreatorPageState extends State<CreatorPage> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: const Text(
-          'Toko Kreatif',
-          style: TextStyle(
-            color: Color(0xFF4B4ACF),
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
+        title: const Center(
+          child: Text(
+            "Creator",
+            style: TextStyle(color: Color(0xFF4B4ACF), fontSize: 20),
           ),
         ),
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF4B4ACF)),
-          onPressed: Navigator.of(context).pop,
-        ),
+        automaticallyImplyLeading: false,
       ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: RefreshIndicator(
-          onRefresh: _refreshCreators,
-          child: FutureBuilder<List<dynamic>>(
-            future: _creatorsFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              } else if (snapshot.hasError || snapshot.data == null) {
-                return const Center(child: Text('Gagal memuat data.'));
-              } else if (snapshot.data!.isEmpty) {
-                return const Center(child: Text('Belum ada toko tersedia.'));
-              } else {
-                final creators = snapshot.data!;
-                return ListView.builder(
-                  itemCount: creators.length,
-                  itemBuilder: (context, index) {
-                    final creator = creators[index];
-                    return _buildCreatorCard(context, creator);
+        child: Column(
+          children: [
+            const SizedBox(height: 16),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _refreshCreators,
+                child: FutureBuilder<List<dynamic>>(
+                  future: _creatorsFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    } else if (snapshot.hasError || snapshot.data == null) {
+                      return const Center(child: Text('Gagal memuat data.'));
+                    } else if (snapshot.data!.isEmpty) {
+                      return const Center(
+                        child: Text('Belum ada kreator tersedia.'),
+                      );
+                    } else {
+                      final creators = snapshot.data!;
+                      return GridView.builder(
+                        padding: const EdgeInsets.all(16),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              childAspectRatio: 0.75,
+                              crossAxisSpacing: 16,
+                              mainAxisSpacing: 16,
+                            ),
+                        itemCount: creators.length,
+                        itemBuilder:
+                            (context, index) =>
+                                _buildCreatorCard(context, creators[index]),
+                      );
+                    }
                   },
-                );
-              }
-            },
-          ),
+                ),
+              ),
+            ),
+          ],
         ),
+      ),
+      bottomNavigationBar: BottomNavBar(
+        selectedIndex: _selectedIndex,
+        onItemTapped: _navigateToPage,
       ),
     );
   }
@@ -87,12 +133,11 @@ class _CreatorPageState extends State<CreatorPage> {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      margin: const EdgeInsets.only(bottom: 24, top: 8),
       child: InkWell(
         onTap: () => _showCreatorDetails(context, creator),
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             gradient: const LinearGradient(
               colors: [Colors.white, Color(0xFFF9F9FF)],
@@ -101,20 +146,20 @@ class _CreatorPageState extends State<CreatorPage> {
             ),
             borderRadius: BorderRadius.circular(16),
           ),
-          child: Row(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Image.network(
                   creator['gambarseller'],
-                  width: 90,
-                  height: 90,
+                  width: double.infinity,
+                  height: 100,
                   fit: BoxFit.cover,
                   errorBuilder:
                       (_, __, ___) => Container(
-                        width: 90,
-                        height: 90,
+                        width: double.infinity,
+                        height: 100,
                         color: Colors.grey[300],
                         child: const Center(
                           child: Icon(Icons.image_not_supported),
@@ -122,68 +167,50 @@ class _CreatorPageState extends State<CreatorPage> {
                       ),
                 ),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
                       creator['nama_toko'],
                       style: const TextStyle(
-                        fontSize: 18,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF4B4ACF),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      creator['deskripsi_tokocreator'],
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.black87,
-                      ),
                     ),
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: ElevatedButton.icon(
-                        onPressed: () => _showCreatorDetails(context, creator),
-                        icon: const Icon(Icons.info_outline, size: 18),
-                        label: const Text('Lihat Toko'),
-                        style: ElevatedButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          backgroundColor: const Color(0xFF4B4ACF),
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 12,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(24),
-                          ),
-                          elevation: 4,
-                          textStyle: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          side: BorderSide.none,
-                          shadowColor: Colors.black.withOpacity(0.2),
-                        ).copyWith(
-                          overlayColor:
-                              MaterialStateProperty.resolveWith<Color?>((
-                                Set<MaterialState> states,
-                              ) {
-                                if (states.contains(MaterialState.pressed)) {
-                                  return Colors.indigoAccent.withOpacity(0.3);
-                                }
-                                return null; // Use the component's default.
-                              }),
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
+                  const Icon(Icons.verified, color: Colors.blue, size: 16),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Expanded(
+                child: Text(
+                  creator['deskripsi_tokocreator'],
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12, color: Colors.black87),
                 ),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () => _showCreatorDetails(context, creator),
+                style: ElevatedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  backgroundColor: const Color(0xFF4B4ACF),
+                  minimumSize: const Size(double.infinity, 30),
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                child: const Text('Detail'),
               ),
             ],
           ),
@@ -230,7 +257,7 @@ class _CreatorPageState extends State<CreatorPage> {
                       border: Border.all(color: Colors.white, width: 3),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withAlpha(20),
+                          color: Colors.black.withAlpha(51),
                           blurRadius: 10,
                           offset: const Offset(0, 3),
                         ),
@@ -258,13 +285,20 @@ class _CreatorPageState extends State<CreatorPage> {
                 ],
               ),
               const SizedBox(height: 20),
-              Text(
-                creator['nama_toko'],
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF4B4ACF),
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      creator['nama_toko'],
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF4B4ACF),
+                      ),
+                    ),
+                  ),
+                  const Icon(Icons.verified, color: Colors.blue, size: 22),
+                ],
               ),
               const SizedBox(height: 10),
               const Divider(),
@@ -302,7 +336,7 @@ class _CreatorPageState extends State<CreatorPage> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: Navigator.of(context).pop,
+                      onPressed: () => Navigator.of(context).pop(),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.grey,
                         foregroundColor: Colors.white,
@@ -339,63 +373,91 @@ class _CreatorPageState extends State<CreatorPage> {
 }
 
 // Halaman untuk menampilkan daftar produk kreator
-class CreatorProductsPage extends StatelessWidget {
+class CreatorProductsPage extends StatefulWidget {
   final int creatorId;
   const CreatorProductsPage({super.key, required this.creatorId});
+
+  @override
+  State<CreatorProductsPage> createState() => _CreatorProductsPageState();
+}
+
+class _CreatorProductsPageState extends State<CreatorProductsPage> {
+  bool _isLoading = true;
+  String _errorMessage = '';
+  List<dynamic> _products = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchCreatorProducts(widget.creatorId);
+  }
+
+  Future<void> _fetchCreatorProducts(int creatorId) async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = '';
+      });
+      final result = await ApiService.getCreatorProducts(creatorId);
+      if (result['status'] == 'success' && result.containsKey('data')) {
+        setState(() {
+          _products = result['data'];
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _errorMessage = 'Gagal memuat produk.';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Kesalahan jaringan: $e';
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Produk Kreatif'),
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Color(0xFF4B4ACF)),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.of(context).pop(),
         ),
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          await _fetchCreatorProducts(creatorId);
+          await _fetchCreatorProducts(widget.creatorId);
         },
-        child: FutureBuilder<List<dynamic>>(
-          future: _fetchCreatorProducts(creatorId),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            } else if (snapshot.hasError || snapshot.data == null) {
-              return const Center(child: Text('Gagal memuat produk.'));
-            } else if (snapshot.data!.isEmpty) {
-              return const Center(
-                child: Text('Tidak ada produk yang tersedia.'),
-              );
-            } else {
-              final products = snapshot.data!;
-              return GridView.builder(
-                padding: const EdgeInsets.all(16),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: 0.7,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
+        child:
+            _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _errorMessage.isNotEmpty
+                ? Center(child: Text(_errorMessage))
+                : _products.isEmpty
+                ? const Center(child: Text('Tidak ada produk'))
+                : GridView.builder(
+                  padding: const EdgeInsets.all(16),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio: 0.7,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                  ),
+                  itemCount: _products.length,
+                  itemBuilder:
+                      (context, index) => _buildProductCard(_products[index]),
                 ),
-                itemCount: products.length,
-                itemBuilder: (context, index) {
-                  final product = products[index];
-                  return _buildProductCard(context, product);
-                },
-              );
-            }
-          },
-        ),
       ),
     );
   }
 
-  Widget _buildProductCard(BuildContext context, Map<String, dynamic> product) {
+  Widget _buildProductCard(Map<String, dynamic> product) {
     final productId = product['id_product'];
-    final bool isFavorited = false; // Placeholder for wishlist status
 
     final List<Color> bgColors = [
       Colors.red[50]!,
@@ -414,7 +476,7 @@ class CreatorProductsPage extends StatelessWidget {
         border: Border.all(color: Colors.grey[200]!, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withAlpha(20),
+            color: Colors.grey.withAlpha(26),
             spreadRadius: 1,
             blurRadius: 2,
             offset: const Offset(0, 1),
@@ -434,18 +496,20 @@ class CreatorProductsPage extends StatelessWidget {
                     top: Radius.circular(16),
                   ),
                 ),
-                child: Image.network(
-                  product['gambarproduct'].toString(),
-                  height: 100,
-                  width: double.infinity,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) {
-                    return const Icon(
-                      Icons.image_not_supported,
-                      size: 70,
-                      color: Colors.grey,
-                    );
-                  },
+                child: Center(
+                  child: Image.network(
+                    product['gambarproduct'],
+                    height: 100,
+                    width: double.infinity,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(
+                        Icons.image_not_supported,
+                        size: 70,
+                        color: Colors.grey,
+                      );
+                    },
+                  ),
                 ),
               ),
               Positioned(
@@ -454,9 +518,9 @@ class CreatorProductsPage extends StatelessWidget {
                 child: IconButton(
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
-                  icon: Icon(
-                    isFavorited ? Icons.favorite : Icons.favorite_border,
-                    color: isFavorited ? Colors.red : Colors.grey,
+                  icon: const Icon(
+                    Icons.favorite_border,
+                    color: Colors.grey,
                     size: 22,
                   ),
                   onPressed: () {},
@@ -464,95 +528,90 @@ class CreatorProductsPage extends StatelessWidget {
               ),
             ],
           ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    product['nama_product'],
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  product['nama_product'],
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Rp ${product['harga']}',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF4B4ACF),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Rp ${product['harga']}',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF4B4ACF),
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                    GestureDetector(
+                      onTap: () => _addToCart(productId),
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4B4ACF),
+                          borderRadius: BorderRadius.circular(6),
                         ),
-                      ),
-                      GestureDetector(
-                        onTap: () => _addToCart(context, productId),
-                        child: Container(
-                          padding: const EdgeInsets.all(3),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF4B4ACF),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Icon(
-                            Icons.add,
-                            color: Colors.white,
-                            size: 14,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  SizedBox(
-                    height: 16,
-                    child: Row(
-                      children: List.generate(
-                        5,
-                        (i) => Icon(
-                          i < (product['stars'] ?? 0)
-                              ? Icons.star
-                              : Icons.star_border,
-                          color:
-                              i < (product['stars'] ?? 0)
-                                  ? Colors.amber
-                                  : Colors.grey,
+                        child: const Icon(
+                          Icons.add,
+                          color: Colors.white,
                           size: 14,
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 3),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          product['nama_toko'] ?? 'Toko',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.grey[600],
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                SizedBox(
+                  height: 16,
+                  child: Row(
+                    children: List.generate(
+                      5,
+                      (i) => Icon(
+                        i < (product['stars'] ?? 0)
+                            ? Icons.star
+                            : Icons.star_border,
+                        color:
+                            i < (product['stars'] ?? 0)
+                                ? Colors.amber
+                                : Colors.grey,
+                        size: 14,
                       ),
-                      Text(
-                        '${product['ulasan']} ulasan',
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        product['nama_toko'] ?? 'Toko',
                         style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ],
-                  ),
-                ],
-              ),
+                    ),
+                    Text(
+                      '${product['ulasan']} ulasan',
+                      style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ],
@@ -560,23 +619,23 @@ class CreatorProductsPage extends StatelessWidget {
     );
   }
 
-  Future<void> _addToCart(BuildContext context, int productId) async {
+  Future<void> _addToCart(int productId) async {
     try {
       final response = await ApiService.addToCart(
         productId: productId,
         quantity: 1,
       );
       if (response['status'] == 'success') {
-        if (context.mounted) {
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text("Produk berhasil ditambahkan ke keranjang"),
-              backgroundColor: const Color(0xFF4B4ACF),
+            const SnackBar(
+              content: Text("Produk berhasil ditambahkan ke keranjang"),
+              backgroundColor: Color(0xFF4B4ACF),
             ),
           );
         }
       } else {
-        if (context.mounted) {
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
@@ -588,20 +647,87 @@ class CreatorProductsPage extends StatelessWidget {
         }
       }
     } catch (e) {
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Kesalahan: $e"), backgroundColor: Colors.red),
         );
       }
     }
   }
+}
 
-  Future<List<dynamic>> _fetchCreatorProducts(int creatorId) async {
-    final result = await ApiService.getCreatorProducts(creatorId);
-    if (result['status'] == 'success' && result.containsKey('data')) {
-      return result['data'];
-    } else {
-      return [];
-    }
+// === BottomNavBar Component ===
+class BottomNavBar extends StatelessWidget {
+  final int selectedIndex;
+  final Function(int) onItemTapped;
+
+  const BottomNavBar({
+    super.key,
+    required this.selectedIndex,
+    required this.onItemTapped,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 60,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withAlpha(77),
+            spreadRadius: 1,
+            blurRadius: 5,
+            offset: const Offset(0, -1),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildFooterIcon(0, Icons.dashboard, 'Dashboard'),
+            _buildFooterIcon(1, Icons.shopping_bag, 'Shop'),
+            _buildFooterIcon(2, Icons.create, 'Creator'),
+            _buildFooterIcon(3, Icons.history, 'History'),
+            _buildFooterIcon(4, Icons.favorite, 'Wishlist'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFooterIcon(int index, IconData icon, String label) {
+    final bool isSelected = selectedIndex == index;
+    return GestureDetector(
+      onTap: () => onItemTapped(index),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: isSelected ? const Color(0xFFE6E6FA) : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              icon,
+              color: isSelected ? const Color(0xFF4B4ACF) : Colors.grey,
+              size: 20,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? const Color(0xFF4B4ACF) : Colors.grey,
+              fontSize: 10,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

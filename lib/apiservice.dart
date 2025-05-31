@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:developer' as developer;
-import 'package:flutter/foundation.dart';
+import 'dart:io';
+import 'dart:async';
 
 class ApiService {
   // Konstanta untuk SharedPreferences keys
@@ -10,14 +11,19 @@ class ApiService {
   static const String _userIdKey = 'user_id';
   static const String _usernameKey = 'username';
   static const String _namaKey = 'nama';
+  static const String detailProductUrl = '$baseUrl/detail_produk.php'; // <---
 
   // URL dasar API - ganti dengan URL server Anda
-  static const String baseUrl = 'http://192.168.56.208/backend';
+  static const String baseUrl = 'http://192.168.112.208/backend';
 
   // URL Produk dan Dashboard
   static const String productUrl = '$baseUrl/product.php';
-  static const String filterProductUrl = '$baseUrl/filter_products.php';
-  static const String dashboardUrl = '$baseUrl/dashboard.php'; // ✅ Ditambahkan
+  static const String filterProductUrl = '$baseUrl/filter.php';
+  static const String dashboardUrl = '$baseUrl/dashboard.php';
+  static const String productDetailUrl = '$baseUrl/product.php';
+  static const String reviewsUrl = '$baseUrl/get_reviews.php';
+  static const String historyUrl = '$baseUrl/history.php';
+  static const String productImageUrl = '$baseUrl/assets/shop/';
 
   // Method untuk login
   static Future<Map<String, dynamic>> login(
@@ -58,6 +64,82 @@ class ApiService {
       developer.log('Error during login:', error: e);
       return {
         'success': false,
+        'message': 'Terjadi kesalahan: ${e.toString()}',
+      };
+    }
+  }
+
+  // Add this method to ApiService class in apiservice.dart
+  static String getProductImageUrl(String? imagePath) {
+    if (imagePath == null || imagePath.isEmpty) return '';
+    if (imagePath.contains('http')) return imagePath;
+    return '$baseUrl/assets/shop/$imagePath';
+  }
+
+  // Method untuk mengambil data history
+  static Future<List<dynamic>> getHistory(int userId) async {
+    final token = await getAuthToken();
+    final uri = Uri.parse('$historyUrl?user_id=$userId');
+    final headers = {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
+
+    final response = await http.get(uri, headers: headers);
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body)['data'];
+    } else {
+      throw Exception('Gagal mengambil data history');
+    }
+  }
+
+  // Add this method to ApiService class in apiservice.dart
+  static Future<Map<String, dynamic>> getPaymentConfirmationData() async {
+    try {
+      developer.log('Mengambil data konfirmasi pembayaran...');
+      bool loggedIn = await isLoggedIn();
+      if (!loggedIn) {
+        developer.log('User belum login, tidak bisa mengambil data pembayaran');
+        return {
+          'status': 'error',
+          'message': 'Anda belum login. Silakan login terlebih dahulu.',
+          'auth_error': true,
+        };
+      }
+      final token = await getAuthToken();
+      final userId = await getUserId();
+      final uri = Uri.parse('$baseUrl/shoppingcart.php?user_id=$userId');
+      final headers = {'Accept': 'application/json'};
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+      final response = await http.get(uri, headers: headers);
+      developer.log('Response status: ${response.statusCode}');
+      developer.log('Response body: ${response.body}');
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        return responseData;
+      } else if (response.statusCode == 401) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove(_authTokenKey);
+        await prefs.remove(_userIdKey);
+        await prefs.remove(_usernameKey);
+        await prefs.remove(_namaKey);
+        return {
+          'status': 'error',
+          'message': 'Sesi login telah berakhir, silakan login kembali.',
+          'auth_error': true,
+        };
+      }
+      return {
+        'status': 'error',
+        'message':
+            'Gagal mendapatkan data pembayaran: HTTP ${response.statusCode}',
+      };
+    } catch (e) {
+      developer.log('Error pada getPaymentConfirmationData:', error: e);
+      return {
+        'status': 'error',
         'message': 'Terjadi kesalahan: ${e.toString()}',
       };
     }
@@ -154,37 +236,53 @@ class ApiService {
     }
   }
 
-  static Future<List<Map<String, dynamic>>> getFilteredProducts({
-    double? minPrice,
-    double? maxPrice,
+  // Tambahkan di apiservice.dart
+  static Future<List<dynamic>> getCategories() async {
+    final url = Uri.parse('http://localhost/backend/get_categories.php');
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+
+    final response = await http.get(
+      url,
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body)['data'];
+    } else {
+      throw Exception('Gagal mengambil kategori');
+    }
+  }
+
+  static Future<List<dynamic>> getFilteredProducts({
+    List<int>? categories,
+    String? priceRange,
   }) async {
-    try {
-      final token = await getAuthToken();
-      final uri = Uri.parse(filterProductUrl); // ← Gunakan konstanta
-      final params = <String, dynamic>{};
-      if (minPrice != null) params['min_price'] = minPrice;
-      if (maxPrice != null) params['max_price'] = maxPrice;
-      final finalUri = uri.replace(queryParameters: params);
-      final headers = {
+    final url = Uri.parse('http://localhost/backend/filter.php');
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
+
+    Map<String, dynamic> body = {};
+    if (categories != null && categories.isNotEmpty) {
+      body['categories'] = categories.map((e) => e.toString()).toList();
+    }
+    if (priceRange != null && priceRange.isNotEmpty) {
+      body['price_range'] = priceRange;
+    }
+
+    final response = await http.post(
+      url,
+      headers: {
         'Content-Type': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
-      };
-      final response = await http.get(finalUri, headers: headers);
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['status'] == 'success' && data['data'] is List) {
-          return List<Map<String, dynamic>>.from(
-            data['data'].map((item) => Map<String, dynamic>.from(item)),
-          );
-        } else {
-          return [];
-        }
-      } else {
-        throw Exception('Gagal memuat produk: ${response.statusCode}');
-      }
-    } catch (e) {
-      debugPrint('Error fetching filtered products: $e');
-      return [];
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode(body),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body)['data'];
+    } else {
+      throw Exception('Gagal mengambil data produk');
     }
   }
 
@@ -273,101 +371,102 @@ class ApiService {
     }
   }
 
-  // Method untuk update profil
   static Future<Map<String, dynamic>> updateProfile({
     required String nama,
     required String gender,
     required String noHp,
     required String email,
+    File? profileImage,
   }) async {
     try {
       developer.log('Memperbarui profil user...');
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString(_authTokenKey);
       final userId = prefs.getInt(_userIdKey);
-      developer.log('Token yang ditemukan: $token');
-      developer.log('User ID: $userId');
-      if (token == null || token.isEmpty) {
-        developer.log('Token tidak ditemukan di SharedPreferences');
+
+      if (token == null || token.isEmpty || userId == null) {
         return {
           'status': 'error',
-          'message': 'Tidak ada token autentikasi',
+          'message': 'Authentication required',
           'auth_error': true,
         };
       }
-      if (userId == null) {
-        developer.log('User ID tidak ditemukan di SharedPreferences');
-        return {
-          'status': 'error',
-          'message': 'Tidak ditemukan ID pengguna',
-          'auth_error': true,
-        };
-      }
-      final uri = Uri.parse('$baseUrl/editprofile.php');
-      final postData = {
-        'id_user': userId.toString(),
-        'nama': nama,
-        'gender': gender,
-        'no_hp': noHp,
-        'email': email,
-        'token': token,
-      };
-      final headers = {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      };
-      developer.log('Request URL: ${uri.toString()}');
-      developer.log('Request Headers: $headers');
-      developer.log('Request Body: ${jsonEncode(postData)}');
-      final response = await http.post(
-        uri,
-        headers: headers,
-        body: jsonEncode(postData),
+
+      // 🔽 TAMBAHKAN DI SINI
+      developer.log(
+        'Update profile request - Nama: $nama, Gender: $gender, No HP: $noHp, Email: $email',
       );
-      developer.log('Response status: ${response.statusCode}');
-      developer.log('Response body: ${response.body}');
-      if (response.statusCode == 200) {
-        Map<String, dynamic> responseData;
+      developer.log('Token digunakan: $token');
+      if (profileImage != null) {
+        developer.log('Foto profil akan diupload: ${profileImage.path}');
+      }
+
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/editprofile.php'),
+      );
+
+      request.headers['Authorization'] = 'Bearer $token';
+      request.fields['id_user'] = userId.toString();
+      request.fields['nama'] = nama;
+      request.fields['gender'] = gender;
+      request.fields['no_hp'] = noHp;
+      request.fields['email'] = email;
+
+      if (profileImage != null) {
         try {
-          responseData = json.decode(response.body);
+          request.files.add(
+            await http.MultipartFile.fromPath(
+              'profile_image',
+              profileImage.path,
+              filename: 'profile_$userId.jpg',
+            ),
+          );
         } catch (e) {
-          developer.log('Error parsing response: $e');
-          return {
-            'status': 'error',
-            'message': 'Gagal memproses respons dari server',
-          };
+          developer.log('Error saat menambahkan file:', error: e);
+          return {'status': 'error', 'message': 'Gagal mengupload foto profil'};
         }
-        if (responseData['status'] == 'success') {
-          await prefs.setString(_namaKey, nama);
-          developer.log('Profil berhasil diperbarui dan data lokal disimpan');
+      }
+
+      final httpResponse = await request.send().timeout(
+        const Duration(seconds: 30),
+      );
+      final responseString = await httpResponse.stream.bytesToString();
+      developer.log('Response raw: $responseString');
+
+      Map<String, dynamic> responseData;
+      try {
+        responseData = json.decode(responseString);
+      } catch (e) {
+        return {'status': 'error', 'message': 'Respons server tidak valid'};
+      }
+
+      if (httpResponse.statusCode == 200) {
+        if (responseData['status'] == 'success' && profileImage != null) {
+          final imagePath = responseData['profile_image'];
+          if (imagePath != null) {
+            await prefs.setString('profile_image', imagePath);
+          }
         }
         return responseData;
-      } else if (response.statusCode == 401) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.remove(_authTokenKey);
-        await prefs.remove(_userIdKey);
-        await prefs.remove(_usernameKey);
-        await prefs.remove(_namaKey);
+      } else {
         return {
           'status': 'error',
-          'message': 'Sesi login telah berakhir, silakan login kembali.',
-          'auth_error': true,
+          'message': responseData['message'] ?? 'Gagal memperbarui profil',
         };
-      } else {
-        Map<String, dynamic> errorData;
-        try {
-          errorData = json.decode(response.body);
-          return errorData;
-        } catch (e) {
-          return {
-            'status': 'error',
-            'message': 'Gagal memperbarui profil: HTTP ${response.statusCode}',
-          };
-        }
       }
+    } on TimeoutException catch (_) {
+      developer.log('Timeout saat update profil');
+      return {
+        'status': 'error',
+        'message': 'Waktu permintaan habis, coba lagi nanti.',
+      };
     } catch (e) {
       developer.log('Error pada updateProfile:', error: e);
-      return {'status': 'error', 'message': e.toString()};
+      return {
+        'status': 'error',
+        'message': 'Terjadi kesalahan: ${e.toString()}',
+      };
     }
   }
 
@@ -403,39 +502,24 @@ class ApiService {
     }
   }
 
-  // Method untuk memeriksa status login
   static Future<bool> isLoggedIn() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString(_authTokenKey);
       final userId = prefs.getInt(_userIdKey);
+
+      // Cek apakah token ada dan tidak kosong
       if (token == null || token.isEmpty || userId == null) {
+        developer.log('isLoggedIn: false - token atau userId tidak ada');
         return false;
       }
-      try {
-        final response = await http.get(
-          Uri.parse('$baseUrl/validate_token.php'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $token',
-          },
-        );
-        if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          return data['valid'] == true;
-        } else if (response.statusCode == 401) {
-          await prefs.remove(_authTokenKey);
-          await prefs.remove(_userIdKey);
-          await prefs.remove(_usernameKey);
-          await prefs.remove(_namaKey);
-          return false;
-        }
-      } catch (e) {
-        developer.log('Error validasi token:', error: e);
-      }
+
+      // Optional: Validasi token dengan server (tidak wajib)
+      // Untuk sekarang, cukup cek keberadaan token saja
+      developer.log('isLoggedIn: true - token dan userId ditemukan');
       return true;
     } catch (e) {
-      developer.log('Error memeriksa status login:', error: e);
+      developer.log('Error checking login status:', error: e);
       return false;
     }
   }
@@ -761,6 +845,7 @@ class ApiService {
     required String gender,
     required String noHp,
     required String email,
+    File? profileImage, // Tambahkan parameter ini
   }) async {
     try {
       final response = await updateProfile(
@@ -768,7 +853,9 @@ class ApiService {
         gender: gender,
         noHp: noHp,
         email: email,
+        profileImage: profileImage, // Teruskan ke fungsi updateProfile
       );
+
       if (response['auth_error'] == true) {
         developer.log('Token expired, attempting refresh...');
         bool refreshSuccess = await refreshToken();
@@ -779,6 +866,7 @@ class ApiService {
             gender: gender,
             noHp: noHp,
             email: email,
+            profileImage: profileImage, // Teruskan ulang foto jika tersedia
           );
           return retryResponse;
         } else {

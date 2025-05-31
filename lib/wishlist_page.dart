@@ -1,13 +1,13 @@
+import 'package:calonaplikasi/creator_community_page.dart';
 import 'package:calonaplikasi/history_page.dart';
 import 'package:flutter/material.dart';
-
-// Import related pages
 import 'detailshop_page.dart';
 import 'shop_page.dart';
 import 'dashboard_page.dart';
 import 'cart_page.dart';
-import 'signin_page.dart'; // Add this for redirecting to login
-import 'apiservice.dart'; // Import your ApiService
+import 'signin_page.dart';
+import 'apiservice.dart';
+import 'package:intl/intl.dart';
 
 class WishlistPage extends StatefulWidget {
   const WishlistPage({super.key});
@@ -27,29 +27,20 @@ class _WishlistPageState extends State<WishlistPage> {
   @override
   void initState() {
     super.initState();
-
-    // Check login status and fetch wishlist products after widget is initialized
     _checkLoginStatusAndFetchData();
   }
 
-  // Check login status and fetch data accordingly
   Future<void> _checkLoginStatusAndFetchData() async {
     if (!mounted) return;
-
     try {
-      // Check if user is logged in
       final bool isLoggedIn = await ApiService.isLoggedIn();
-
       setState(() {
         _isLoading = true;
         _isLoggedIn = isLoggedIn;
       });
-
       if (isLoggedIn) {
-        // If logged in, fetch wishlist
         await _fetchWishlistProducts();
       } else {
-        // If not logged in, set error message
         setState(() {
           _isLoading = false;
           _errorMessage = 'Anda belum login. Silakan login terlebih dahulu.';
@@ -66,21 +57,15 @@ class _WishlistPageState extends State<WishlistPage> {
     }
   }
 
-  // Method to fetch wishlist products using ApiService
   Future<void> _fetchWishlistProducts() async {
     if (!mounted) return;
-
     try {
       setState(() {
         _isLoading = true;
         _errorMessage = '';
       });
-
       debugPrint('INFO: Fetching wishlist products...');
-
-      // Use ApiService to get wishlist
       final wishlistData = await ApiService.getWishlist();
-
       if (mounted) {
         if (wishlistData.isEmpty) {
           setState(() {
@@ -105,27 +90,19 @@ class _WishlistPageState extends State<WishlistPage> {
     }
   }
 
-  // Method to remove item from wishlist
   Future<void> _removeFromWishlist(int productId) async {
     try {
-      // Optimistic update - update UI first
       setState(() {
         _wishlistProducts.removeWhere(
           (product) => _getProductId(product) == productId,
         );
       });
-
-      // Use ApiService to remove from wishlist
       final result = await ApiService.toggleWishlistItem(productId, 'remove');
-
       if (result['status'] != 'success') {
-        // If server operation fails, refresh page to get the latest data
         _fetchWishlistProducts();
         debugPrint(
           'WARNING: Gagal menghapus dari wishlist: ${result['message']}',
         );
-
-        // Show error message
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -137,7 +114,6 @@ class _WishlistPageState extends State<WishlistPage> {
           );
         }
       } else {
-        // Show success message
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -148,11 +124,8 @@ class _WishlistPageState extends State<WishlistPage> {
         }
       }
     } catch (e) {
-      // If exception occurs, refresh page to get the latest data
       _fetchWishlistProducts();
       debugPrint('SEVERE: Error saat menghapus dari wishlist: $e');
-
-      // Show error message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -164,7 +137,6 @@ class _WishlistPageState extends State<WishlistPage> {
     }
   }
 
-  // Method to navigate to login page
   void _navigateToLogin() {
     Navigator.pushReplacement(
       context,
@@ -172,10 +144,8 @@ class _WishlistPageState extends State<WishlistPage> {
     );
   }
 
-  // Method to safely get id_product
   int _getProductId(dynamic product) {
     if (product is Map) {
-      // If product is a Map, get id_product
       var idProduct = product['id_product'];
       if (idProduct is int) {
         return idProduct;
@@ -184,38 +154,28 @@ class _WishlistPageState extends State<WishlistPage> {
       }
       return 0;
     } else if (product is int) {
-      // If product itself is an integer, return directly
       return product;
     }
     return 0;
   }
 
-  // Method to safely get product price
   dynamic _getProductPrice(dynamic product) {
     if (product is! Map) return 0;
-
-    // Try to get price from various possible keys
     var price = product['harga'];
-    // Fixed: Using null-aware assignment operator
-    price ??= product['price']; // Alternative key
-
-    // If still null or empty, try to check data type
+    price ??= product['price'];
     if (price == null || (price is String && price.isEmpty)) {
       return 0;
     }
-
     return price;
   }
 
-  // Method to format currency - FIXED to show correct price
   String _formatCurrency(dynamic price) {
-    // Make sure price is not null
     if (price == null) return "0";
 
-    // Convert to int more robustly
     int priceValue;
+
     if (price is String) {
-      // Remove non-digit characters if any (e.g., Rp, periods, commas)
+      // Bersihkan nilai dari karakter non-angka
       String cleanPrice = price.replaceAll(RegExp(r'[^\d]'), '');
       priceValue = int.tryParse(cleanPrice) ?? 0;
     } else if (price is int) {
@@ -226,20 +186,13 @@ class _WishlistPageState extends State<WishlistPage> {
       priceValue = 0;
     }
 
-    // FIXED: Format with thousand separators without adding extra zeros
-    // Format with Indonesian thousand separators
-    final String formatted = priceValue.toString().replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (Match m) => '${m[1]}.',
-    );
-
-    return formatted;
+    // Format angka dengan pemisah ribuan
+    final formatter = NumberFormat('#,##0', 'id_ID');
+    return formatter.format(priceValue);
   }
 
-  // Helper method to get correct stars value
   int _getStarsValue(dynamic product) {
     if (product is! Map) return 0;
-
     if (product['stars'] is int) {
       return product['stars'];
     } else if (product['stars'] is String) {
@@ -248,13 +201,9 @@ class _WishlistPageState extends State<WishlistPage> {
     return 0;
   }
 
-  // Method to build product card similar to shop_page.dart
   Widget _buildProductCard(BuildContext context, int index) {
     final product = _wishlistProducts[index];
-
-    // Handle if product is not a Map
     if (product is! Map) {
-      // Simple card for non-Map products
       return Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -271,8 +220,8 @@ class _WishlistPageState extends State<WishlistPage> {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Simple placeholder image container
             Container(
               height: 150,
               decoration: BoxDecoration(
@@ -322,10 +271,7 @@ class _WishlistPageState extends State<WishlistPage> {
       );
     }
 
-    // Get product ID as int
     final int productId = _getProductId(product);
-
-    // List of background colors for variety
     List<Color> bgColors = [
       Colors.red[50]!,
       Colors.blue[50]!,
@@ -353,7 +299,6 @@ class _WishlistPageState extends State<WishlistPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Image container
           Stack(
             children: [
               Container(
@@ -367,12 +312,12 @@ class _WishlistPageState extends State<WishlistPage> {
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    // Product image with proper path handling
+                    // In the _buildProductCard method, replace the Image.network part with:
                     product['gambarproduct'] != null
                         ? Image.network(
-                          product['gambarproduct'].toString().contains('http')
-                              ? product['gambarproduct'].toString()
-                              : 'http://192.168.56.208/backend/assets/shop/${product['gambarproduct']}',
+                          ApiService.getProductImageUrl(
+                            product['gambarproduct'].toString(),
+                          ),
                           height: 110,
                           width: double.infinity,
                           fit: BoxFit.contain,
@@ -390,18 +335,15 @@ class _WishlistPageState extends State<WishlistPage> {
                           size: 70,
                           color: Colors.grey,
                         ),
-                    // Detail button
                     Center(
                       child: Material(
                         color: Colors.transparent,
                         child: InkWell(
                           onTap: () {
-                            // Convert product Map to Map<String, dynamic> without explicit cast
                             final Map<String, dynamic> productData = {};
                             product.forEach((key, value) {
                               productData[key.toString()] = value;
                             });
-
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -443,7 +385,6 @@ class _WishlistPageState extends State<WishlistPage> {
                   ],
                 ),
               ),
-              // Favorite button
               Positioned(
                 top: 8,
                 right: 8,
@@ -456,7 +397,6 @@ class _WishlistPageState extends State<WishlistPage> {
               ),
             ],
           ),
-          // Product information - Fixed for overflow issues
           Padding(
             padding: const EdgeInsets.all(10),
             child: Column(
@@ -473,10 +413,8 @@ class _WishlistPageState extends State<WishlistPage> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 6),
-                // FIXED: Row with price and add button
                 Row(
                   children: [
-                    // Use Expanded to prevent overflow
                     Expanded(
                       child: Text(
                         'Rp. ${_formatCurrency(_getProductPrice(product))}',
@@ -504,7 +442,6 @@ class _WishlistPageState extends State<WishlistPage> {
                   ],
                 ),
                 const SizedBox(height: 6),
-                // Star rating
                 SizedBox(
                   height: 18,
                   child: Row(
@@ -524,10 +461,8 @@ class _WishlistPageState extends State<WishlistPage> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                // FIXED: Shop name and review count with Expanded
                 Row(
                   children: [
-                    // Expanded for shop name to avoid overflow
                     Expanded(
                       flex: 2,
                       child: Text(
@@ -538,7 +473,6 @@ class _WishlistPageState extends State<WishlistPage> {
                       ),
                     ),
                     const SizedBox(width: 4),
-                    // Expanded for review count to avoid overflow
                     Expanded(
                       flex: 1,
                       child: Text(
@@ -559,13 +493,12 @@ class _WishlistPageState extends State<WishlistPage> {
     );
   }
 
-  // Method to build the product grid
   Widget _buildProductGrid() {
     return GridView.builder(
       padding: const EdgeInsets.all(16),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        childAspectRatio: 0.65, // Adjusted for taller cards
+        childAspectRatio: 0.55,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
       ),
@@ -582,35 +515,17 @@ class _WishlistPageState extends State<WishlistPage> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back,
+        title: const Text(
+          '', // <-- Judul "Wishlist" dihapus
+          style: TextStyle(
             color: Color(0xFF4B4ACF),
-            size: 24,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
           ),
-          onPressed:
-              () => Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const DashboardPage()),
-              ),
         ),
-        title: const Row(
-          children: [
-            Text(
-              'Wishlist',
-              style: TextStyle(
-                color: Color(0xFF4B4ACF),
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
+        centerTitle: true,
+        automaticallyImplyLeading: false, // <-- Tombol panah kembali dihapus
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Color(0xFF4B4ACF)),
-            onPressed: _fetchWishlistProducts,
-          ),
           Padding(
             padding: const EdgeInsets.only(right: 12.0),
             child: GestureDetector(
@@ -661,163 +576,162 @@ class _WishlistPageState extends State<WishlistPage> {
         ],
       ),
       body: SafeArea(
-        child:
-            _isLoading
-                ? const Center(
-                  child: CircularProgressIndicator(color: Color(0xFF4B4ACF)),
-                )
-                : !_isLoggedIn
-                ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.error_outline,
-                        color: Colors.red,
-                        size: 50,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        _errorMessage,
-                        style: const TextStyle(color: Colors.red, fontSize: 16),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: _navigateToLogin,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF4B4ACF),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 12,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
+        child: RefreshIndicator(
+          onRefresh: _fetchWishlistProducts,
+          color: const Color(0xFF4B4ACF),
+          child:
+              _isLoading
+                  ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF4B4ACF)),
+                  )
+                  : !_isLoggedIn
+                  ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          color: Colors.red,
+                          size: 50,
                         ),
-                        child: const Text(
-                          'Login',
-                          style: TextStyle(fontSize: 16),
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-                : _errorMessage.isNotEmpty && _wishlistProducts.isEmpty
-                ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.error_outline,
-                        color: Colors.red,
-                        size: 50,
-                      ),
-                      const SizedBox(height: 12),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: Text(
+                        const SizedBox(height: 12),
+                        Text(
                           _errorMessage,
                           style: const TextStyle(
                             color: Colors.red,
-                            fontSize: 14,
+                            fontSize: 16,
                           ),
                           textAlign: TextAlign.center,
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      ElevatedButton(
-                        onPressed: _fetchWishlistProducts,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF4B4ACF),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
-                          ),
-                        ),
-                        child: const Text(
-                          'Refresh',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-                : _wishlistProducts.isEmpty
-                ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.favorite_border,
-                        color: Colors.grey,
-                        size: 64,
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Wishlist Anda kosong',
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 40),
-                        child: Text(
-                          'Tambahkan produk favorit Anda ke wishlist',
-                          style: TextStyle(color: Colors.grey, fontSize: 14),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const ShopPage(),
+                        const SizedBox(height: 20),
+                        ElevatedButton(
+                          onPressed: _navigateToLogin,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF4B4ACF),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
                             ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF4B4ACF),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 10,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: const Text(
+                            'Login',
+                            style: TextStyle(fontSize: 16),
                           ),
                         ),
-                        child: const Text(
-                          'Belanja Sekarang',
-                          style: TextStyle(fontSize: 14),
+                      ],
+                    ),
+                  )
+                  : _errorMessage.isNotEmpty && _wishlistProducts.isEmpty
+                  ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          color: Colors.red,
+                          size: 50,
                         ),
-                      ),
-                    ],
-                  ),
-                )
-                : RefreshIndicator(
-                  onRefresh: _fetchWishlistProducts,
-                  color: const Color(0xFF4B4ACF),
-                  child: _buildProductGrid(),
-                ),
+                        const SizedBox(height: 12),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Text(
+                            _errorMessage,
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontSize: 14,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        ElevatedButton(
+                          onPressed: _fetchWishlistProducts,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF4B4ACF),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                          ),
+                          child: const Text(
+                            'Refresh',
+                            style: TextStyle(fontSize: 14),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                  : _wishlistProducts.isEmpty
+                  ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.favorite_border,
+                          color: Colors.grey,
+                          size: 64,
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Wishlist Anda kosong',
+                          style: TextStyle(
+                            color: Colors.grey,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 40),
+                          child: Text(
+                            'Tambahkan produk favorit Anda ke wishlist',
+                            style: TextStyle(color: Colors.grey, fontSize: 14),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const ShopPage(),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF4B4ACF),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                          ),
+                          child: const Text(
+                            'Belanja Sekarang',
+                            style: TextStyle(fontSize: 14),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                  : _buildProductGrid(),
+        ),
       ),
-      // Bottom Navigation Bar
       bottomNavigationBar: BottomNavBar(
         selectedIndex: _selectedIndex,
         onItemTapped: (index) {
           setState(() {
             _selectedIndex = index;
           });
-
           if (index == 0) {
-            // Dashboard
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const DashboardPage()),
             );
           } else if (index == 1) {
-            // Shop
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const ShopPage()),
@@ -825,10 +739,15 @@ class _WishlistPageState extends State<WishlistPage> {
           } else if (index == 2) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => const HistoryPage()),
+              MaterialPageRoute(
+                builder: (context) => const CreatorCommunityPage(),
+              ),
             );
           } else if (index == 3) {}
-          // No need to handle index 4 (Wishlist) as we're already here
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const HistoryPage()),
+          );
         },
       ),
     );
@@ -849,7 +768,7 @@ class BottomNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 60, // Reduced footer size
+      height: 60,
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -857,76 +776,55 @@ class BottomNavBar extends StatelessWidget {
             color: Colors.grey.withAlpha(77),
             spreadRadius: 1,
             blurRadius: 5,
-            offset: const Offset(0, -1), // shadow on top
+            offset: const Offset(0, -1),
           ),
         ],
       ),
-      child: Row(
-        mainAxisAlignment:
-            MainAxisAlignment.spaceAround, // Changed to spaceAround
-        children: [
-          // Dashboard Icon
-          _buildFooterIcon(0, Icons.dashboard, 'Dashboard'),
-          // Shop Icon
-          _buildFooterIcon(1, Icons.shopping_bag, 'Shop'),
-          // Content Creator Icon
-          _buildFooterIcon(2, Icons.create, 'Creator'),
-          // Order History Icon
-          _buildFooterIcon(3, Icons.history, 'History'),
-          // Wishlist Icon
-          _buildFooterIcon(4, Icons.favorite, 'Wishlist'),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildFooterIcon(0, Icons.dashboard, 'Dashboard'),
+            _buildFooterIcon(1, Icons.shopping_bag, 'Shop'),
+            _buildFooterIcon(2, Icons.create, 'Creator'),
+            _buildFooterIcon(3, Icons.history, 'History'),
+            _buildFooterIcon(4, Icons.favorite, 'Wishlist'),
+          ],
+        ),
       ),
     );
   }
 
-  // Method _buildFooterIcon for BottomNavBar
   Widget _buildFooterIcon(int index, IconData icon, String label) {
-    return Expanded(
-      // Wrap in Expanded to prevent overflow
-      child: GestureDetector(
-        onTap: () => onItemTapped(index),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6), // Smaller padding
-              decoration: BoxDecoration(
-                color:
-                    selectedIndex == index
-                        ? const Color(0xFFE6E6FA)
-                        : Colors.transparent,
-                borderRadius: BorderRadius.circular(8), // Smaller border radius
-              ),
-              child: Icon(
-                icon,
-                color:
-                    selectedIndex == index
-                        ? const Color(0xFF4B4ACF)
-                        : Colors.grey,
-                size: 20, // Smaller icon size
-              ),
+    final bool isSelected = selectedIndex == index;
+    return GestureDetector(
+      onTap: () => onItemTapped(index),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: isSelected ? const Color(0xFFE6E6FA) : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
             ),
-            const SizedBox(height: 2), // Smaller spacing
-            Text(
-              label,
-              style: TextStyle(
-                color:
-                    selectedIndex == index
-                        ? const Color(0xFF4B4ACF)
-                        : Colors.grey,
-                fontSize: 10, // Smaller font size
-                fontWeight:
-                    selectedIndex == index
-                        ? FontWeight.bold
-                        : FontWeight.normal,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis, // Handle long text
+            child: Icon(
+              icon,
+              color: isSelected ? const Color(0xFF4B4ACF) : Colors.grey,
+              size: 20,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? const Color(0xFF4B4ACF) : Colors.grey,
+              fontSize: 10,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ],
       ),
     );
   }

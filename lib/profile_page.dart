@@ -1,5 +1,6 @@
 import 'package:calonaplikasi/editprofile_page.dart';
 import 'package:flutter/material.dart';
+import 'forgotpasswordprofile_page.dart';
 import 'package:calonaplikasi/apiservice.dart';
 import 'package:calonaplikasi/signin_page.dart';
 
@@ -50,6 +51,9 @@ class _ProfilePageState extends State<ProfilePage> {
   void _logout() async {
     // Panggil fungsi logout jika ada di ApiService
     await ApiService.logout();
+
+    // Add a mounted check before using context
+    if (!mounted) return;
 
     // Navigasi ke halaman SignInPage
     Navigator.pushReplacement(
@@ -102,7 +106,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             child: CircularProgressIndicator(
                               value: 0.75,
                               strokeWidth: 8,
-                              backgroundColor: Colors.grey.withOpacity(0.2),
+                              backgroundColor: Colors.grey.withAlpha(51),
                               valueColor: const AlwaysStoppedAnimation<Color>(
                                 Color(0xFF4B4ACF),
                               ),
@@ -166,8 +170,13 @@ class _ProfilePageState extends State<ProfilePage> {
                         icon: Icons.lock,
                         title: 'Change Password',
                         onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Coming soon')),
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (context) =>
+                                      const ForgotPasswordProfilePage(),
+                            ),
                           );
                         },
                       ),
