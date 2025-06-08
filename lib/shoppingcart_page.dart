@@ -56,6 +56,7 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
   String _userAddress = 'Loading address...';
   String _userPhone = 'Loading...';
   String _userName = 'Loading...';
+  String _userId = '';
   bool _isLoadingAddress = true;
 
   @override
@@ -69,6 +70,58 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
 
     // Fetch user's address when the widget initializes
     _loadUserAddress();
+  }
+
+  // Method to remove item from cart
+  void _removeItem(int index) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text(
+            'Remove Item',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF4B4ACF),
+            ),
+          ),
+          content: Text(
+            'Are you sure you want to remove "${_shoppingCartItems[index].title}" from your cart?',
+            style: const TextStyle(fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                setState(() {
+                  _shoppingCartItems.removeAt(index);
+                });
+                Navigator.of(context).pop();
+
+                // Show success message
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Item removed from cart'),
+                    backgroundColor: Colors.green,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              },
+              child: const Text('Remove'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   // Method to load user address
@@ -86,6 +139,7 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
           _userAddress = userData['alamat'] ?? 'No address available';
           _userName = userData['nama'] ?? 'User';
           _userPhone = userData['no_hp'] ?? 'No phone available';
+          _userId = userData['id_user']?.toString() ?? '';
           _isLoadingAddress = false;
         });
       } else {
@@ -101,6 +155,165 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
         _userAddress = 'Error retrieving address';
         _isLoadingAddress = false;
       });
+    }
+  }
+
+  // Method to show address edit dialog
+  Future<void> _showEditAddressDialog() async {
+    final TextEditingController addressController = TextEditingController();
+    addressController.text =
+        _userAddress == 'No address available' ? '' : _userAddress;
+
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text(
+            'Edit Delivery Address',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF4B4ACF),
+            ),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: addressController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Address',
+                    hintText: 'Enter your complete address...',
+                    border: OutlineInputBorder(),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Color(0xFF4B4ACF)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Name: $_userName',
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+                Text(
+                  'Phone: $_userPhone',
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4B4ACF),
+              ),
+              child: const Text(
+                'Update',
+                style: TextStyle(color: Colors.white),
+              ),
+              onPressed: () async {
+                final newAddress = addressController.text.trim();
+                if (newAddress.isEmpty) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please enter a valid address'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.of(dialogContext).pop(); // Close dialog first
+
+                // Update address via API and handle UI updates
+                _updateAddressAPI(newAddress);
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Separate method to handle address update API call
+  Future<void> _updateAddressAPI(String newAddress) async {
+    // Check if widget is still mounted before showing snackbar
+    if (!mounted) return;
+
+    // Show loading
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            SizedBox(width: 16),
+            Text('Updating address...'),
+          ],
+        ),
+        duration: Duration(seconds: 30),
+      ),
+    );
+
+    try {
+      // Update address via API
+      final result = await ApiService.updateAddress(
+        newAddress,
+        userId: _userId,
+      );
+
+      // Check if widget is still mounted before updating UI
+      if (!mounted) return;
+
+      // Hide loading snackbar
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      if (result['status'] == 'success') {
+        setState(() {
+          _userAddress = newAddress;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Address updated successfully'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update address: ${result['message']}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      // Check if widget is still mounted before showing error
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error updating address: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
     }
   }
 
@@ -203,17 +416,9 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
                               ),
                             ),
                             TextButton(
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Choose address feature coming soon',
-                                    ),
-                                  ),
-                                );
-                              },
+                              onPressed: _showEditAddressDialog,
                               style: TextButton.styleFrom(
-                                padding: EdgeInsets.symmetric(
+                                padding: const EdgeInsets.symmetric(
                                   horizontal: 8,
                                   vertical: 4,
                                 ),
@@ -344,13 +549,35 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
                                       const SizedBox(height: 8),
                                       Row(
                                         mainAxisAlignment:
-                                            MainAxisAlignment.end,
+                                            MainAxisAlignment.spaceBetween,
                                         children: [
                                           Text(
                                             'Qty: ${item.quantity}',
                                             style: const TextStyle(
                                               fontWeight: FontWeight.w500,
                                               fontSize: 13,
+                                            ),
+                                          ),
+                                          // Remove button
+                                          InkWell(
+                                            onTap: () => _removeItem(index),
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(6),
+                                              decoration: BoxDecoration(
+                                                color: Colors.red.withOpacity(
+                                                  0.1,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(20),
+                                              ),
+                                              child: const Icon(
+                                                Icons.delete_outline,
+                                                color: Colors.red,
+                                                size: 18,
+                                              ),
                                             ),
                                           ),
                                         ],
@@ -503,16 +730,19 @@ class _ShoppingCartPageState extends State<ShoppingCartPage> {
                                           vertical: 10,
                                         ),
                                       ),
-                                      onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder:
-                                                (context) =>
-                                                    const PaymentConfirmationPage(),
-                                          ),
-                                        );
-                                      },
+                                      onPressed:
+                                          _shoppingCartItems.isEmpty
+                                              ? null
+                                              : () {
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder:
+                                                        (context) =>
+                                                            const PaymentConfirmationPage(),
+                                                  ),
+                                                );
+                                              },
                                       child: const Text(
                                         'Place Order',
                                         style: TextStyle(

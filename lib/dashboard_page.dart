@@ -312,15 +312,22 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   String formatCurrency(int price) {
-    final regex = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
-    final reversed = price.toString().split('').reversed.join();
-    final result =
-        reversed
-            .replaceAllMapped(regex, (match) => '${match.group(1)},')
-            .split('')
-            .reversed
-            .join();
-    return 'Rp $result';
+    // Menggunakan regex untuk menambahkan titik setiap 3 digit dari belakang
+    String priceString = price.toString();
+    String reversed = priceString.split('').reversed.join('');
+
+    // Menambah titik setiap 3 karakter
+    String formatted = '';
+    for (int i = 0; i < reversed.length; i++) {
+      if (i > 0 && i % 3 == 0) {
+        formatted += '.';
+      }
+      formatted += reversed[i];
+    }
+
+    // Membalik kembali string dan menambah prefix Rp
+    String result = formatted.split('').reversed.join('');
+    return 'Rp. $result';
   }
 
   @override
@@ -498,15 +505,15 @@ class _DashboardPageState extends State<DashboardPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  "Hi,",
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  "Hallo ${_userData?['nama'] ?? 'Guest'}",
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                 ),
                 Text(
-                  "${_userData?['nama'] ?? 'Guest'}",
+                  "Selamat datang di Digimize",
                   style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+                    fontSize: 13,
                     color: Color(0xFF4B4ACF),
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ],
@@ -780,6 +787,15 @@ class _DashboardPageState extends State<DashboardPage> {
     int colorIndex = productId.abs() % bgColors.length;
     Color bgColor = bgColors[colorIndex];
 
+    // Method lokal: fetch jumlah ulasan
+    Future<int> fetchReviewCount(int productId) async {
+      final result = await ApiService.getReviews(productId);
+      if (result['status'] == 'success') {
+        return result['total_reviews'] ?? 0;
+      }
+      return 0;
+    }
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -914,13 +930,28 @@ class _DashboardPageState extends State<DashboardPage> {
                           ),
                         ),
                         const SizedBox(width: 4),
-                        Text(
-                          '${product['ulasan'] ?? 0} ulasan',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.grey[600],
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                        FutureBuilder<int>(
+                          future: fetchReviewCount(productId),
+                          initialData: 0,
+                          builder: (context, snapshot) {
+                            if (snapshot.hasData && snapshot.data! >= 0) {
+                              return Text(
+                                '${snapshot.data} ulasan',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey,
+                                ),
+                              );
+                            } else {
+                              return const Text(
+                                '0 ulasan',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey,
+                                ),
+                              );
+                            }
+                          },
                         ),
                       ],
                     ),

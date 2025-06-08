@@ -23,6 +23,7 @@ class _WishlistPageState extends State<WishlistPage> {
   bool _isLoading = true;
   String _errorMessage = '';
   bool _isLoggedIn = false;
+  Map<int, int> _reviewCounts = {}; // Cache untuk menyimpan jumlah ulasan
 
   @override
   void initState() {
@@ -75,8 +76,14 @@ class _WishlistPageState extends State<WishlistPage> {
         } else {
           setState(() {
             _wishlistProducts = wishlistData;
-            _isLoading = false;
           });
+          // Fetch review counts for all products
+          await _fetchAllReviewCounts();
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+          }
         }
       }
     } catch (e) {
@@ -90,12 +97,49 @@ class _WishlistPageState extends State<WishlistPage> {
     }
   }
 
+  Future<void> _fetchAllReviewCounts() async {
+    Map<int, int> reviewCounts = {};
+
+    for (var product in _wishlistProducts) {
+      if (product is Map) {
+        int productId = _getProductId(product);
+        if (productId > 0) {
+          try {
+            int reviewCount = await fetchReviewCount(productId);
+            reviewCounts[productId] = reviewCount;
+          } catch (e) {
+            debugPrint(
+              'WARNING: Error fetching review count for product $productId: $e',
+            );
+            reviewCounts[productId] = 0;
+          }
+        }
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _reviewCounts = reviewCounts;
+      });
+    }
+  }
+
+  Future<int> fetchReviewCount(int productId) async {
+    final result = await ApiService.getReviews(productId);
+    if (result['status'] == 'success') {
+      return result['total_reviews'] ?? 0;
+    }
+    return 0;
+  }
+
   Future<void> _removeFromWishlist(int productId) async {
     try {
       setState(() {
         _wishlistProducts.removeWhere(
           (product) => _getProductId(product) == productId,
         );
+        // Remove from review cache as well
+        _reviewCounts.remove(productId);
       });
       final result = await ApiService.toggleWishlistItem(productId, 'remove');
       if (result['status'] != 'success') {
@@ -199,6 +243,10 @@ class _WishlistPageState extends State<WishlistPage> {
       return int.tryParse(product['stars']) ?? 0;
     }
     return 0;
+  }
+
+  int _getReviewCount(int productId) {
+    return _reviewCounts[productId] ?? 0;
   }
 
   Widget _buildProductCard(BuildContext context, int index) {
@@ -466,7 +514,10 @@ class _WishlistPageState extends State<WishlistPage> {
                     Expanded(
                       flex: 2,
                       child: Text(
-                        product['nama_toko'] ?? 'Shop',
+                        product.containsKey('nama_toko')
+                            ? (product['nama_toko']?.toString() ??
+                                'Toko Tidak Diketahui')
+                            : 'Toko Tidak Diketahui',
                         style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -476,7 +527,7 @@ class _WishlistPageState extends State<WishlistPage> {
                     Expanded(
                       flex: 1,
                       child: Text(
-                        '${product['ulasan'] ?? 0} ulasan',
+                        '${_getReviewCount(productId)} ulasan',
                         style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,

@@ -4,19 +4,20 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:async';
+import 'dart:math' as math;
 
 class ApiService {
+  // URL dasar API - ganti dengan URL server Anda
+  static const String baseUrl = 'http://192.168.112.208/backend';
+
   // Konstanta untuk SharedPreferences keys
   static const String _authTokenKey = 'auth_token';
   static const String _userIdKey = 'user_id';
   static const String _usernameKey = 'username';
   static const String _namaKey = 'nama';
-  static const String detailProductUrl = '$baseUrl/detail_produk.php'; // <---
-
-  // URL dasar API - ganti dengan URL server Anda
-  static const String baseUrl = 'http://192.168.112.208/backend';
 
   // URL Produk dan Dashboard
+  static const String detailProductUrl = '$baseUrl/detail_produk.php'; // <---
   static const String productUrl = '$baseUrl/product.php';
   static const String filterProductUrl = '$baseUrl/filter.php';
   static const String dashboardUrl = '$baseUrl/dashboard.php';
@@ -76,6 +77,38 @@ class ApiService {
     return '$baseUrl/assets/shop/$imagePath';
   }
 
+  // Tambahkan method ini untuk debug token
+  static Future<void> debugToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString(_authTokenKey);
+      final userId = prefs.getInt(_userIdKey);
+
+      developer.log('=== DEBUG TOKEN ===');
+      developer.log('Token exists: ${token != null}');
+      developer.log('Token length: ${token?.length ?? 0}');
+      developer.log('Token value: ${token ?? 'NULL'}');
+      developer.log('User ID: $userId');
+      developer.log('==================');
+
+      if (token != null) {
+        // Test token dengan memanggil endpoint yang memerlukan auth
+        final response = await http.get(
+          Uri.parse('$baseUrl/test_auth.php'), // buat endpoint test ini
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        );
+
+        developer.log('Test auth response: ${response.statusCode}');
+        developer.log('Test auth body: ${response.body}');
+      }
+    } catch (e) {
+      developer.log('Debug token error: $e');
+    }
+  }
+
   // Method untuk mengambil data history
   static Future<List<dynamic>> getHistory(int userId) async {
     final token = await getAuthToken();
@@ -90,6 +123,63 @@ class ApiService {
       return jsonDecode(response.body)['data'];
     } else {
       throw Exception('Gagal mengambil data history');
+    }
+  }
+
+  Future<int> fetchReviewCount(int productId) async {
+    final result = await ApiService.getReviews(productId);
+    if (result['status'] == 'success') {
+      return result['total_reviews'] ?? 0;
+    }
+    return 0;
+  }
+
+  static Future<Map<String, dynamic>> getReviews(int idProduct) async {
+    try {
+      developer.log('Mengambil ulasan produk dengan ID: $idProduct');
+      bool loggedIn = await isLoggedIn();
+      if (!loggedIn) {
+        developer.log('User belum login, tidak bisa mengambil ulasan');
+        return {
+          'status': 'error',
+          'message': 'Anda belum login. Silakan login terlebih dahulu.',
+          'auth_error': true,
+        };
+      }
+      final token = await getAuthToken();
+      final uri = Uri.parse('$reviewsUrl?id_product=$idProduct');
+      final headers = {'Accept': 'application/json'};
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+      final response = await http.get(uri, headers: headers);
+      developer.log('Response status: ${response.statusCode}');
+      developer.log('Response body: ${response.body}');
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        return responseData;
+      } else if (response.statusCode == 401) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove(_authTokenKey);
+        await prefs.remove(_userIdKey);
+        await prefs.remove(_usernameKey);
+        await prefs.remove(_namaKey);
+        return {
+          'status': 'error',
+          'message': 'Sesi login telah berakhir, silakan login kembali.',
+          'auth_error': true,
+        };
+      }
+      return {
+        'status': 'error',
+        'message': 'Gagal mendapatkan ulasan: HTTP ${response.statusCode}',
+      };
+    } catch (e) {
+      developer.log('Error pada getReviews:', error: e);
+      return {
+        'status': 'error',
+        'message': 'Terjadi kesalahan: ${e.toString()}',
+      };
     }
   }
 
@@ -347,6 +437,53 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> updateAddress(
+    String newAddress, {
+    String? userId,
+  }) async {
+    try {
+      final url = Uri.parse('$baseUrl/update_address.php');
+
+      // Prepare request body
+      final Map<String, dynamic> requestBody = {'alamat': newAddress};
+
+      // Add user_id if provided (for cases where token isn't available)
+      if (userId != null) {
+        requestBody['user_id'] = userId;
+      }
+
+      // Make the request
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          // Add authorization header if you have a stored token
+          // 'Authorization': 'Bearer ${your_stored_token}',
+        },
+        body: json.encode(requestBody),
+      );
+
+      // Parse response
+      final Map<String, dynamic> responseData = json.decode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'status': 'success',
+          'message': responseData['message'] ?? 'Address updated successfully',
+          'data': responseData['data'],
+        };
+      } else {
+        return {
+          'status': 'error',
+          'message': responseData['message'] ?? 'Failed to update address',
+          'status_code': response.statusCode,
+        };
+      }
+    } catch (e) {
+      return {'status': 'error', 'message': 'Network error: ${e.toString()}'};
+    }
+  }
+
   // Method untuk mendapatkan profil untuk edit dengan retry mechanism
   static Future<Map<String, dynamic>> getProfileForEdit() async {
     try {
@@ -371,6 +508,22 @@ class ApiService {
     }
   }
 
+  // Tambahkan method ini ke dalam class ApiService
+  static String getProfileImageUrl(String? imagePath) {
+    if (imagePath == null || imagePath.isEmpty) return '';
+
+    // Jika sudah URL lengkap, return apa adanya
+    if (imagePath.contains('http')) return imagePath;
+
+    // Jika path dimulai dengan 'assets/', jangan duplikasi
+    if (imagePath.startsWith('assets/')) {
+      return '$baseUrl/$imagePath';
+    }
+
+    // Jika hanya nama file
+    return '$baseUrl/assets/profile/$imagePath';
+  }
+
   static Future<Map<String, dynamic>> updateProfile({
     required String nama,
     required String gender,
@@ -379,95 +532,165 @@ class ApiService {
     File? profileImage,
   }) async {
     try {
-      developer.log('Memperbarui profil user...');
+      // 1. Dapatkan token dan user ID
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString(_authTokenKey);
       final userId = prefs.getInt(_userIdKey);
 
-      if (token == null || token.isEmpty || userId == null) {
+      developer.log('=== UPDATE PROFILE DEBUG ===');
+      developer.log('Token exists: ${token != null}');
+      developer.log('User ID: $userId');
+      developer.log('Base URL: $baseUrl');
+
+      // 2. Validasi token dan user ID
+      if (token == null || token.isEmpty) {
+        developer.log('Token tidak ditemukan di SharedPreferences');
         return {
           'status': 'error',
-          'message': 'Authentication required',
+          'message': 'Token autentikasi tidak ditemukan',
           'auth_error': true,
         };
       }
 
-      // 🔽 TAMBAHKAN DI SINI
-      developer.log(
-        'Update profile request - Nama: $nama, Gender: $gender, No HP: $noHp, Email: $email',
-      );
-      developer.log('Token digunakan: $token');
-      if (profileImage != null) {
-        developer.log('Foto profil akan diupload: ${profileImage.path}');
+      if (userId == null) {
+        developer.log('User ID tidak ditemukan di SharedPreferences');
+        return {
+          'status': 'error',
+          'message': 'ID pengguna tidak ditemukan',
+          'auth_error': true,
+        };
       }
 
+      // 3. Buat multipart request
       var request = http.MultipartRequest(
         'POST',
         Uri.parse('$baseUrl/editprofile.php'),
       );
 
+      // 4. Pasang header Authorization dengan benar
       request.headers['Authorization'] = 'Bearer $token';
-      request.fields['id_user'] = userId.toString();
+      request.headers['Accept'] = 'application/json';
+
+      developer.log('Request headers: ${request.headers}');
+
+      // 5. Tambahkan field data
       request.fields['nama'] = nama;
       request.fields['gender'] = gender;
       request.fields['no_hp'] = noHp;
       request.fields['email'] = email;
 
+      developer.log('Request fields: ${request.fields}');
+
+      // 6. Tambahkan file jika ada
       if (profileImage != null) {
-        try {
-          request.files.add(
-            await http.MultipartFile.fromPath(
-              'profile_image',
-              profileImage.path,
-              filename: 'profile_$userId.jpg',
-            ),
-          );
-        } catch (e) {
-          developer.log('Error saat menambahkan file:', error: e);
-          return {'status': 'error', 'message': 'Gagal mengupload foto profil'};
-        }
+        developer.log('Adding profile image: ${profileImage.path}');
+        request.files.add(
+          await http.MultipartFile.fromPath(
+            'profile_image',
+            profileImage.path,
+            filename: 'profile_$userId.jpg',
+          ),
+        );
       }
 
+      // 7. Kirim request dengan timeout
       final httpResponse = await request.send().timeout(
-        const Duration(seconds: 30),
+        Duration(seconds: 30),
+        onTimeout: () {
+          throw TimeoutException('Request timeout', Duration(seconds: 30));
+        },
       );
-      final responseString = await httpResponse.stream.bytesToString();
-      developer.log('Response raw: $responseString');
 
+      final responseString = await httpResponse.stream.bytesToString();
+
+      developer.log('=== RESPONSE DEBUG ===');
+      developer.log('Response status: ${httpResponse.statusCode}');
+      developer.log('Response headers: ${httpResponse.headers}');
+      developer.log('Response body length: ${responseString.length}');
+      developer.log('Response body: $responseString');
+
+      // 8. Cek apakah response kosong
+      if (responseString.isEmpty) {
+        return {
+          'status': 'error',
+          'message': 'Server mengembalikan response kosong',
+        };
+      }
+
+      // 9. Cek apakah response dimulai dengan karakter yang benar
+      String trimmedResponse = responseString.trim();
+      if (!trimmedResponse.startsWith('{') &&
+          !trimmedResponse.startsWith('[')) {
+        developer.log(
+          'Response tidak dimulai dengan JSON: ${trimmedResponse.substring(0, math.min(100, trimmedResponse.length))}',
+        );
+        return {
+          'status': 'error',
+          'message': 'Server mengembalikan response yang tidak valid',
+        };
+      }
+
+      // 10. Parse response
       Map<String, dynamic> responseData;
       try {
-        responseData = json.decode(responseString);
+        responseData = json.decode(trimmedResponse);
+        developer.log('Parsed response: $responseData');
       } catch (e) {
-        return {'status': 'error', 'message': 'Respons server tidak valid'};
+        developer.log('JSON decode error: $e');
+        developer.log('Response that failed to parse: $trimmedResponse');
+        return {
+          'status': 'error',
+          'message': 'Gagal memparse respons server: ${e.toString()}',
+        };
       }
 
+      // 11. Handle response berdasarkan status code
       if (httpResponse.statusCode == 200) {
-        if (responseData['status'] == 'success' && profileImage != null) {
-          final imagePath = responseData['profile_image'];
-          if (imagePath != null) {
-            await prefs.setString('profile_image', imagePath);
-          }
-        }
         return responseData;
+      } else if (httpResponse.statusCode == 401) {
+        return {
+          'status': 'error',
+          'message': 'Autentikasi gagal',
+          'auth_error': true,
+        };
       } else {
         return {
           'status': 'error',
-          'message': responseData['message'] ?? 'Gagal memperbarui profil',
+          'message':
+              responseData['message'] ??
+              'Gagal memperbarui profil (HTTP ${httpResponse.statusCode})',
         };
       }
-    } on TimeoutException catch (_) {
-      developer.log('Timeout saat update profil');
+    } on TimeoutException catch (e) {
+      developer.log('Timeout error: $e');
       return {
         'status': 'error',
-        'message': 'Waktu permintaan habis, coba lagi nanti.',
+        'message': 'Request timeout. Periksa koneksi internet Anda.',
+      };
+    } on SocketException catch (e) {
+      developer.log('Socket error: $e');
+      return {
+        'status': 'error',
+        'message':
+            'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.',
       };
     } catch (e) {
-      developer.log('Error pada updateProfile:', error: e);
+      developer.log('Unexpected error pada updateProfile: $e');
+      developer.log('Error type: ${e.runtimeType}');
       return {
         'status': 'error',
         'message': 'Terjadi kesalahan: ${e.toString()}',
       };
     }
+  }
+
+  // Untuk debugging, tambahkan fungsi ini
+  static Future<void> debugSharedPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    developer.log('SharedPreferences content:');
+    developer.log('Token: ${prefs.getString(_authTokenKey)}');
+    developer.log('User ID: ${prefs.getInt(_userIdKey)}');
+    developer.log('Username: ${prefs.getString(_usernameKey)}');
   }
 
   // Method untuk logout
@@ -845,17 +1068,39 @@ class ApiService {
     required String gender,
     required String noHp,
     required String email,
-    File? profileImage, // Tambahkan parameter ini
+    File? profileImage,
   }) async {
     try {
+      // Ensure user is logged in
+      bool loggedIn = await isLoggedIn();
+      if (!loggedIn) {
+        return {
+          'status': 'error',
+          'message': 'Anda belum login. Silakan login terlebih dahulu.',
+          'auth_error': true,
+        };
+      }
+
+      // Get token first
+      final token = await getAuthToken();
+      if (token == null || token.isEmpty) {
+        return {
+          'status': 'error',
+          'message': 'Token autentikasi tidak ditemukan',
+          'auth_error': true,
+        };
+      }
+
+      // First attempt to update profile
       final response = await updateProfile(
         nama: nama,
         gender: gender,
         noHp: noHp,
         email: email,
-        profileImage: profileImage, // Teruskan ke fungsi updateProfile
+        profileImage: profileImage,
       );
 
+      // If token expired, try refreshing
       if (response['auth_error'] == true) {
         developer.log('Token expired, attempting refresh...');
         bool refreshSuccess = await refreshToken();
@@ -866,7 +1111,7 @@ class ApiService {
             gender: gender,
             noHp: noHp,
             email: email,
-            profileImage: profileImage, // Teruskan ulang foto jika tersedia
+            profileImage: profileImage,
           );
           return retryResponse;
         } else {
@@ -891,34 +1136,53 @@ class ApiService {
       final oldToken = prefs.getString(_authTokenKey);
       final userId = prefs.getInt(_userIdKey);
       final username = prefs.getString(_usernameKey);
-      if (oldToken == null || userId == null || username == null) {
-        developer.log('Tidak ada data yang diperlukan untuk refresh token');
+
+      if (oldToken == null || oldToken.isEmpty) {
+        developer.log('Token lama tidak ditemukan atau kosong');
         return false;
       }
+
+      if (userId == null) {
+        developer.log('User ID tidak ditemukan');
+        return false;
+      }
+
+      if (username == null || username.isEmpty) {
+        developer.log('Username tidak ditemukan');
+        return false;
+      }
+
       final uri = Uri.parse('$baseUrl/refresh_token.php');
       final requestData = {
         'user_id': userId.toString(),
         'username': username,
         'old_token': oldToken,
       };
+
+      developer.log('Mengirim request refresh token ke: $uri');
+      developer.log('Dengan data: $requestData');
+
       final response = await http.post(
         uri,
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json',
+        },
         body: requestData,
       );
-      developer.log(
-        'Refresh token response: ${response.statusCode}, ${response.body}',
-      );
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['status'] == 'success' && data['token'] != null) {
-          await prefs.setString(_authTokenKey, data['token']);
-          developer.log('Token berhasil diperbarui: ${data['token']}');
-          return true;
-        }
+
+      developer.log('Response status: ${response.statusCode}');
+      developer.log('Response body: ${response.body}');
+
+      // Contoh parsing JSON dan return value
+      final responseData = jsonDecode(response.body);
+      if (response.statusCode == 200 && responseData['success'] == true) {
+        final newToken = responseData['new_token'];
+        await prefs.setString(_authTokenKey, newToken);
+        return true;
+      } else {
+        return false;
       }
-      developer.log('Gagal memperbarui token: ${response.statusCode}');
-      return false;
     } catch (e) {
       developer.log('Error pada refreshToken:', error: e);
       return false;

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart'; // Import untuk NumberFormat
 import 'apiservice.dart';
 import 'shoppingcart_page.dart';
 
@@ -31,6 +32,14 @@ class _CartPageState extends State<CartPage> {
   List<CartItem> _cartItems = [];
   bool _isLoading = true;
   bool _selectAll = false; // Untuk checkbox "pilih semua"
+
+  // Formatter untuk format harga Indonesia
+  final NumberFormat _currencyFormatter = NumberFormat('#,##0', 'id_ID');
+
+  // Fungsi untuk format harga
+  String formatPrice(double price) {
+    return 'Rp. ${_currencyFormatter.format(price.toInt())}';
+  }
 
   // Ambil item keranjang dari server
   Future<void> fetchCartItems() async {
@@ -331,7 +340,9 @@ class _CartPageState extends State<CartPage> {
                                       ),
                                       const SizedBox(height: 6),
                                       Text(
-                                        'Rp ${item.price.toStringAsFixed(0)}',
+                                        formatPrice(
+                                          item.price,
+                                        ), // Menggunakan formatPrice
                                         style: TextStyle(
                                           fontWeight: FontWeight.w600,
                                           fontSize: 15,
@@ -450,7 +461,7 @@ class _CartPageState extends State<CartPage> {
                               ),
                             ),
                             Text(
-                              '$selectedItemCount items selected', // Menghapus tanda kurung {}
+                              '$selectedItemCount items selected',
                               style: TextStyle(
                                 fontSize: 14,
                                 color: Colors.grey[600],
@@ -470,7 +481,9 @@ class _CartPageState extends State<CartPage> {
                               ),
                             ),
                             Text(
-                              'Rp ${totalAmount.toStringAsFixed(0)}',
+                              formatPrice(
+                                totalAmount,
+                              ), // Menggunakan formatPrice
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 18,
@@ -495,8 +508,7 @@ class _CartPageState extends State<CartPage> {
                             ),
                             onPressed:
                                 selectedItemCount > 0
-                                    ? () =>
-                                        _navigateToCheckout() // Ubah untuk navigasi ke ShoppingCartPage
+                                    ? () => _navigateToCheckout()
                                     : null,
                             child: const Text(
                               'Checkout',

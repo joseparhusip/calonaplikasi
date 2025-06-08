@@ -158,7 +158,7 @@ class _CreatorPageState extends State<CreatorPage> {
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
-        onTap: () => _showCreatorDetails(context, creator),
+        onTap: () => _navigateToProducts(context, creator),
         borderRadius: BorderRadius.circular(16),
         child: Container(
           padding: const EdgeInsets.all(12),
@@ -220,7 +220,7 @@ class _CreatorPageState extends State<CreatorPage> {
               ),
               const SizedBox(height: 8),
               ElevatedButton(
-                onPressed: () => _showCreatorDetails(context, creator),
+                onPressed: () => _navigateToProducts(context, creator),
                 style: ElevatedButton.styleFrom(
                   foregroundColor: Colors.white,
                   backgroundColor: const Color(0xFF4B4ACF),
@@ -243,148 +243,6 @@ class _CreatorPageState extends State<CreatorPage> {
     );
   }
 
-  void _showCreatorDetails(BuildContext context, Map<String, dynamic> creator) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      backgroundColor: Colors.white,
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    height: 200,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE6E6FA),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white, width: 3),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withAlpha(51),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                  ),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.network(
-                      creator['gambarseller'],
-                      height: 180,
-                      width: 180,
-                      fit: BoxFit.cover,
-                      errorBuilder:
-                          (_, __, ___) => Container(
-                            height: 180,
-                            width: 180,
-                            color: Colors.grey[300],
-                            child: const Center(
-                              child: Icon(Icons.image_not_supported, size: 40),
-                            ),
-                          ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      creator['nama_toko'],
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF4B4ACF),
-                      ),
-                    ),
-                  ),
-                  const Icon(Icons.verified, color: Colors.blue, size: 22),
-                ],
-              ),
-              const SizedBox(height: 10),
-              const Divider(),
-              const SizedBox(height: 10),
-              Text(
-                creator['deskripsi_tokocreator'],
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Colors.black87,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _navigateToProducts(context, creator),
-                      icon: const Icon(Icons.shopping_bag_outlined),
-                      label: const Text("Lihat Produk"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4B4ACF),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                      ),
-                      child: const Text("Tutup"),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   void _navigateToProducts(BuildContext context, Map<String, dynamic> creator) {
     Navigator.push(
       context,
@@ -392,7 +250,10 @@ class _CreatorPageState extends State<CreatorPage> {
         pageBuilder: (_, animation, __) {
           return FadeTransition(
             opacity: animation,
-            child: CreatorProductsPage(creatorId: creator['id_sellers']),
+            child: CreatorProductsPage(
+              creatorId: creator['id_sellers'],
+              creatorDetails: creator, // Pass creator details
+            ),
           );
         },
         transitionDuration: const Duration(milliseconds: 400),
@@ -404,7 +265,13 @@ class _CreatorPageState extends State<CreatorPage> {
 // Halaman untuk menampilkan daftar produk kreator
 class CreatorProductsPage extends StatefulWidget {
   final int creatorId;
-  const CreatorProductsPage({super.key, required this.creatorId});
+  final Map<String, dynamic> creatorDetails; // Detail kreator
+
+  const CreatorProductsPage({
+    super.key,
+    required this.creatorId,
+    required this.creatorDetails,
+  });
 
   @override
   State<CreatorProductsPage> createState() => _CreatorProductsPageState();
@@ -414,6 +281,12 @@ class _CreatorProductsPageState extends State<CreatorProductsPage> {
   bool _isLoading = true;
   String _errorMessage = '';
   List<dynamic> _products = [];
+
+  // PERBAIKAN: Inisialisasi langsung dengan Map kosong
+  Map<int, bool> _wishlistStatus = {};
+
+  // Add review count cache
+  Map<int, int> _reviewCounts = {};
 
   @override
   void initState() {
@@ -433,6 +306,10 @@ class _CreatorProductsPageState extends State<CreatorProductsPage> {
           _products = result['data'];
           _isLoading = false;
         });
+        // Panggil _checkWishlistStatus setelah _products diset
+        await _checkWishlistStatus(result['data']);
+        // Fetch review counts for all products
+        await _fetchReviewCounts(result['data']);
       } else {
         setState(() {
           _errorMessage = 'Gagal memuat produk.';
@@ -445,6 +322,150 @@ class _CreatorProductsPageState extends State<CreatorProductsPage> {
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _checkWishlistStatus(List<dynamic> products) async {
+    try {
+      final userId = await ApiService.getUserId();
+      if (userId == null) return;
+
+      // PERBAIKAN: Reset _wishlistStatus untuk produk baru
+      Map<int, bool> newWishlistStatus = {};
+
+      for (var product in products) {
+        final productId = product['id_product'];
+        try {
+          final response = await ApiService.toggleWishlistItem(
+            productId,
+            'check',
+          );
+          newWishlistStatus[productId] =
+              response['status'] == 'success' &&
+              response['in_wishlist'] == true;
+        } catch (e) {
+          // Jika gagal cek status wishlist, set default ke false
+          newWishlistStatus[productId] = false;
+          debugPrint(
+            'Error checking wishlist status for product $productId: $e',
+          );
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _wishlistStatus = newWishlistStatus;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error in _checkWishlistStatus: $e');
+      // Jika ada error, pastikan semua produk memiliki status default
+      if (mounted) {
+        setState(() {
+          for (var product in products) {
+            _wishlistStatus[product['id_product']] = false;
+          }
+        });
+      }
+    }
+  }
+
+  // Add function to fetch review counts
+  Future<void> _fetchReviewCounts(List<dynamic> products) async {
+    Map<int, int> newReviewCounts = {};
+
+    for (var product in products) {
+      final productId = product['id_product'];
+      try {
+        final reviewCount = await fetchReviewCount(productId);
+        newReviewCounts[productId] = reviewCount;
+      } catch (e) {
+        debugPrint('Error fetching review count for product $productId: $e');
+        newReviewCounts[productId] = 0;
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _reviewCounts = newReviewCounts;
+      });
+    }
+  }
+
+  // Add the fetchReviewCount function
+  Future<int> fetchReviewCount(int productId) async {
+    final result = await ApiService.getReviews(productId);
+    if (result['status'] == 'success') {
+      return result['total_reviews'] ?? 0;
+    }
+    return 0;
+  }
+
+  void _toggleWishlist(Map<String, dynamic> product) async {
+    final productId = product['id_product'];
+    final currentStatus = _wishlistStatus[productId] ?? false;
+    final action = currentStatus ? 'remove' : 'add';
+
+    try {
+      final response = await ApiService.toggleWishlistItem(productId, action);
+
+      if (response['status'] == 'success') {
+        if (mounted) {
+          setState(() {
+            _wishlistStatus[productId] = !currentStatus;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                currentStatus
+                    ? "Dihapus dari wishlist"
+                    : "Ditambahkan ke wishlist",
+              ),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                "Gagal mengupdate wishlist: ${response['message'] ?? 'Unknown error'}",
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  String _formatPrice(dynamic price) {
+    // Convert price to string and add thousand separators
+    String priceStr = price.toString();
+
+    // Remove any existing formatting
+    priceStr = priceStr.replaceAll(RegExp(r'[^\d]'), '');
+
+    // Add thousand separators (dots)
+    String formatted = '';
+    int count = 0;
+
+    for (int i = priceStr.length - 1; i >= 0; i--) {
+      if (count > 0 && count % 3 == 0) {
+        formatted = '.$formatted';
+      }
+      formatted = priceStr[i] + formatted;
+      count++;
+    }
+
+    return 'Rp. $formatted';
   }
 
   @override
@@ -469,21 +490,91 @@ class _CreatorProductsPageState extends State<CreatorProductsPage> {
                 ? Center(child: Text(_errorMessage))
                 : _products.isEmpty
                 ? const Center(child: Text('Tidak ada produk'))
-                : GridView.builder(
-                  padding: const EdgeInsets.all(16),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    childAspectRatio: 0.7,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                  ),
-                  itemCount: _products.length,
-                  itemBuilder:
-                      (context, index) => _buildProductCard(_products[index]),
+                : Column(
+                  children: [
+                    // Creator Details Section
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Image.network(
+                              widget.creatorDetails['gambarseller'],
+                              width: double.infinity,
+                              height: 150,
+                              fit: BoxFit.contain,
+                              errorBuilder:
+                                  (_, __, ___) => Container(
+                                    width: double.infinity,
+                                    height: 150,
+                                    color: Colors.grey[300],
+                                    child: const Center(
+                                      child: Icon(Icons.image_not_supported),
+                                    ),
+                                  ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  widget.creatorDetails['nama_toko'],
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF4B4ACF),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const Icon(
+                                Icons.verified,
+                                color: Colors.blue,
+                                size: 22,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            widget.creatorDetails['deskripsi_tokocreator'],
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Colors.black87,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Products Grid
+                    Expanded(
+                      child: GridView.builder(
+                        padding: const EdgeInsets.all(16),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              childAspectRatio: 0.7,
+                              crossAxisSpacing: 16,
+                              mainAxisSpacing: 16,
+                            ),
+                        itemCount: _products.length,
+                        itemBuilder:
+                            (context, index) => _buildProductCard(
+                              _products[index],
+                              widget.creatorDetails,
+                            ),
+                      ),
+                    ),
+                  ],
                 ),
       ),
       bottomNavigationBar: BottomNavBar(
-        selectedIndex: 2, // tetap di posisi Creator
+        selectedIndex: 2,
         onItemTapped: (index) {
           if (index == 0) {
             Navigator.pushReplacement(
@@ -511,7 +602,10 @@ class _CreatorProductsPageState extends State<CreatorProductsPage> {
     );
   }
 
-  Widget _buildProductCard(Map<String, dynamic> product) {
+  Widget _buildProductCard(
+    Map<String, dynamic> product,
+    Map<String, dynamic> creatorDetails,
+  ) {
     final productId = product['id_product'];
     final List<Color> bgColors = [
       Colors.red[50]!,
@@ -522,6 +616,7 @@ class _CreatorProductsPageState extends State<CreatorProductsPage> {
       Colors.teal[50]!,
     ];
     final bgColor = bgColors[productId % bgColors.length];
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -568,15 +663,18 @@ class _CreatorProductsPageState extends State<CreatorProductsPage> {
               Positioned(
                 top: 8,
                 right: 8,
-                child: IconButton(
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  icon: const Icon(
-                    Icons.favorite_border,
-                    color: Colors.grey,
+                child: GestureDetector(
+                  onTap: () => _toggleWishlist(product),
+                  child: Icon(
+                    _wishlistStatus[productId] == true
+                        ? Icons.favorite
+                        : Icons.favorite_border,
+                    color:
+                        _wishlistStatus[productId] == true
+                            ? Colors.red
+                            : Colors.grey,
                     size: 22,
                   ),
-                  onPressed: () {},
                 ),
               ),
             ],
@@ -602,7 +700,7 @@ class _CreatorProductsPageState extends State<CreatorProductsPage> {
                   children: [
                     Expanded(
                       child: Text(
-                        'Rp ${product['harga']}',
+                        _formatPrice(product['harga']),
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
@@ -653,13 +751,15 @@ class _CreatorProductsPageState extends State<CreatorProductsPage> {
                   children: [
                     Expanded(
                       child: Text(
-                        product['nama_toko'] ?? 'Toko',
+                        // PERBAIKAN: Ambil nama_toko dari creatorDetails, bukan dari product
+                        creatorDetails['nama_toko'] ?? 'Toko',
                         style: TextStyle(fontSize: 10, color: Colors.grey[600]),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     Text(
-                      '${product['ulasan']} ulasan',
+                      // PERBAIKAN: Menggunakan review count dari API
+                      '${_reviewCounts[productId] ?? 0} ulasan',
                       style: TextStyle(fontSize: 10, color: Colors.grey[600]),
                     ),
                   ],

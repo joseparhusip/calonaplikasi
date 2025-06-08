@@ -79,6 +79,7 @@ class _ShopPageState extends State<ShopPage> with TickerProviderStateMixin {
     return {'token': token, 'userId': userId};
   }
 
+  // PERBAIKAN 2: Method _fetchFilteredProducts() - SESUDAH (DIPERBAIKI)
   Future<void> _fetchFilteredProducts() async {
     if (!mounted) return;
     try {
@@ -97,12 +98,16 @@ class _ShopPageState extends State<ShopPage> with TickerProviderStateMixin {
         }),
       );
 
+      if (!mounted) return; // CEK SETELAH HTTP REQUEST
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['status'] == 'success') {
-          setState(() {
-            _filteredProducts = List<Map<String, dynamic>>.from(data['data']);
-          });
+          if (mounted) {
+            setState(() {
+              _filteredProducts = List<Map<String, dynamic>>.from(data['data']);
+            });
+          }
         } else {
           debugPrint('Filter error: ${data['message']}');
         }
@@ -151,10 +156,12 @@ class _ShopPageState extends State<ShopPage> with TickerProviderStateMixin {
   Future<void> _fetchProducts() async {
     if (!mounted) return;
     try {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = '';
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+          _errorMessage = '';
+        });
+      }
 
       debugPrint('INFO: Fetching products...');
       final authData = await _getAuthData();
@@ -163,12 +170,14 @@ class _ShopPageState extends State<ShopPage> with TickerProviderStateMixin {
       // PERBAIKAN: Cek token dulu sebelum request
       if (token == null || token.isEmpty) {
         debugPrint('WARNING: No auth token found');
-        setState(() {
-          _products = _getDummyProducts();
-          _fetchFilteredProducts();
-          _isLoading = false;
-          _errorMessage = '';
-        });
+        if (mounted) {
+          setState(() {
+            _products = _getDummyProducts();
+            _fetchFilteredProducts();
+            _isLoading = false;
+            _errorMessage = '';
+          });
+        }
         return;
       }
 
@@ -183,20 +192,26 @@ class _ShopPageState extends State<ShopPage> with TickerProviderStateMixin {
 
       debugPrint('INFO: Response status: ${response.statusCode}');
 
+      if (!mounted) return; // CEK LAGI SETELAH HTTP REQUEST
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
         if (responseData['status'] == 'success') {
-          setState(() {
-            _products = List<Map<String, dynamic>>.from(responseData['data']);
-            _fetchFilteredProducts();
-            _isLoading = false;
-          });
+          if (mounted) {
+            setState(() {
+              _products = List<Map<String, dynamic>>.from(responseData['data']);
+              _fetchFilteredProducts();
+              _isLoading = false;
+            });
+          }
         } else {
-          setState(() {
-            _errorMessage =
-                responseData['message'] ?? 'Failed to load products';
-            _isLoading = false;
-          });
+          if (mounted) {
+            setState(() {
+              _errorMessage =
+                  responseData['message'] ?? 'Failed to load products';
+              _isLoading = false;
+            });
+          }
         }
       } else if (response.statusCode == 401) {
         // PERBAIKAN: Konsisten handling 401
@@ -207,15 +222,15 @@ class _ShopPageState extends State<ShopPage> with TickerProviderStateMixin {
         await prefs.remove('auth_token');
         await prefs.remove('id_user');
 
-        setState(() {
-          _products = _getDummyProducts();
-          _fetchFilteredProducts();
-          _isLoading = false;
-          _errorMessage = '';
-        });
-
-        // OPSIONAL: Tampilkan snackbar bahwa token expired
         if (mounted) {
+          setState(() {
+            _products = _getDummyProducts();
+            _fetchFilteredProducts();
+            _isLoading = false;
+            _errorMessage = '';
+          });
+
+          // OPSIONAL: Tampilkan snackbar bahwa token expired
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
@@ -227,16 +242,20 @@ class _ShopPageState extends State<ShopPage> with TickerProviderStateMixin {
           );
         }
       } else {
+        if (mounted) {
+          setState(() {
+            _errorMessage = 'Server error: ${response.statusCode}';
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
         setState(() {
-          _errorMessage = 'Server error: ${response.statusCode}';
+          _errorMessage = 'Network error: $e';
           _isLoading = false;
         });
       }
-    } catch (e) {
-      setState(() {
-        _errorMessage = 'Network error: $e';
-        _isLoading = false;
-      });
       debugPrint('SEVERE: $_errorMessage');
     }
   }
@@ -426,9 +445,13 @@ class _ShopPageState extends State<ShopPage> with TickerProviderStateMixin {
 
   Future<void> _searchProducts(String query) async {
     if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-    });
+
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
+
     try {
       final authData = await _getAuthData();
       final token = authData['token'];
@@ -442,58 +465,75 @@ class _ShopPageState extends State<ShopPage> with TickerProviderStateMixin {
           if (token != null) 'Authorization': 'Bearer $token',
         },
       );
+
       debugPrint('INFO: Search response status: ${response.statusCode}');
       debugPrint('INFO: Search response body length: ${response.body.length}');
+
+      if (!mounted) return; // CEK SETELAH HTTP REQUEST
+
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = json.decode(response.body);
         if (responseData['status'] == 'success') {
-          setState(() {
-            _filteredProducts = List<Map<String, dynamic>>.from(
-              responseData['data'],
-            );
-            _isLoading = false;
-          });
+          if (mounted) {
+            setState(() {
+              _filteredProducts = List<Map<String, dynamic>>.from(
+                responseData['data'],
+              );
+              _isLoading = false;
+            });
+          }
         } else {
-          setState(() {
-            _filteredProducts = [];
-            _errorMessage =
-                responseData['message'] ?? 'Tidak ada hasil ditemukan';
-            _isLoading = false;
-          });
+          if (mounted) {
+            setState(() {
+              _filteredProducts = [];
+              _errorMessage =
+                  responseData['message'] ?? 'Tidak ada hasil ditemukan';
+              _isLoading = false;
+            });
+          }
         }
       } else if (response.statusCode == 401) {
         // Jika token invalid, cari dari dummy atau local data
-        setState(() {
-          _filteredProducts =
-              _products.where((product) {
-                return product['nama_product']
-                    .toString()
-                    .toLowerCase()
-                    .contains(query.toLowerCase());
-              }).toList();
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _filteredProducts =
+                _products.where((product) {
+                  return product['nama_product']
+                      .toString()
+                      .toLowerCase()
+                      .contains(query.toLowerCase());
+                }).toList();
+            _isLoading = false;
+          });
+        }
       } else {
-        setState(() {
-          _errorMessage = 'Server error during search: ${response.statusCode}';
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _errorMessage =
+                'Server error during search: ${response.statusCode}';
+            _isLoading = false;
+          });
+        }
         debugPrint('SEVERE: $_errorMessage');
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Network error during search: $e';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Network error during search: $e';
+          _isLoading = false;
+        });
+      }
       debugPrint('SEVERE: $_errorMessage');
     }
   }
 
   void _filterProducts(String query) {
     if (query.isEmpty) {
-      setState(() {
-        _filteredProducts = _products;
-      });
+      if (mounted) {
+        setState(() {
+          _filteredProducts = _products;
+        });
+      }
       return;
     }
     _searchProducts(query);
@@ -502,7 +542,7 @@ class _ShopPageState extends State<ShopPage> with TickerProviderStateMixin {
   String _formatCurrency(int price) {
     final currencyFormat = NumberFormat.currency(
       locale: 'id_ID',
-      symbol: 'Rp ',
+      symbol: 'Rp. ', // ← UBAH: dari 'Rp ' menjadi 'Rp. '
       decimalDigits: 0,
     );
     return currencyFormat.format(price);
@@ -510,33 +550,22 @@ class _ShopPageState extends State<ShopPage> with TickerProviderStateMixin {
 
   Widget _buildProductCard(BuildContext context, int index) {
     final product = _filteredProducts[index];
-
     // ✅ Parsing id_product
     final int productId =
         (product['id_product'] is int)
             ? product['id_product']
             : int.tryParse(product['id_product'].toString()) ?? 0;
-
     // ✅ Parsing harga
     final int price =
         (product['harga'] is int)
             ? product['harga']
             : int.tryParse(product['harga'].toString()) ?? 0;
-
-    // ✅ Parsing ulasan
-    final int reviews =
-        (product['ulasan'] is int)
-            ? product['ulasan']
-            : int.tryParse(product['ulasan'].toString()) ?? 0;
-
     // ✅ Parsing stars
     final int stars =
         (product['stars'] is int)
             ? product['stars']
             : int.tryParse(product['stars'].toString()) ?? 0;
-
     final bool isFavorited = favoritedProducts.contains(productId);
-
     List<Color> bgColors = [
       Colors.red[50]!,
       Colors.blue[50]!,
@@ -546,6 +575,15 @@ class _ShopPageState extends State<ShopPage> with TickerProviderStateMixin {
       Colors.teal[50]!,
     ];
     Color bgColor = bgColors[index % bgColors.length];
+
+    // Method untuk mengambil jumlah ulasan
+    Future<int> fetchReviewCount(int productId) async {
+      final result = await ApiService.getReviews(productId);
+      if (result['status'] == 'success') {
+        return result['total_reviews'] ?? 0;
+      }
+      return 0;
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -638,9 +676,7 @@ class _ShopPageState extends State<ShopPage> with TickerProviderStateMixin {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      _formatCurrency(
-                        price,
-                      ), // gunakan price yang sudah diparse
+                      _formatCurrency(price),
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
@@ -682,9 +718,25 @@ class _ShopPageState extends State<ShopPage> with TickerProviderStateMixin {
                       product['nama_toko'] ?? 'Toko',
                       style: const TextStyle(fontSize: 10, color: Colors.grey),
                     ),
-                    Text(
-                      '$reviews ulasan',
-                      style: const TextStyle(fontSize: 10, color: Colors.grey),
+                    FutureBuilder<int>(
+                      future: fetchReviewCount(productId),
+                      initialData: 0,
+                      builder: (context, snapshot) {
+                        if (snapshot.hasData && snapshot.data! >= 0) {
+                          return Text(
+                            '${snapshot.data} ulasan',
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey,
+                            ),
+                          );
+                        } else {
+                          return const Text(
+                            '0 ulasan',
+                            style: TextStyle(fontSize: 10, color: Colors.grey),
+                          );
+                        }
+                      },
                     ),
                   ],
                 ),
@@ -962,11 +1014,11 @@ class _ShopPageState extends State<ShopPage> with TickerProviderStateMixin {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Min: ${NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(minPrice)}',
+              'Min: ${NumberFormat.currency(locale: 'id_ID', symbol: 'Rp. ', decimalDigits: 0).format(minPrice)}',
               style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
             Text(
-              'Max: ${NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(maxPrice)}',
+              'Max: ${NumberFormat.currency(locale: 'id_ID', symbol: 'Rp. ', decimalDigits: 0).format(maxPrice)}',
               style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ],
@@ -982,12 +1034,12 @@ class _ShopPageState extends State<ShopPage> with TickerProviderStateMixin {
           labels: RangeLabels(
             NumberFormat.currency(
               locale: 'id_ID',
-              symbol: 'Rp ',
+              symbol: 'Rp. ', // ← UBAH: dari 'Rp ' menjadi 'Rp. '
               decimalDigits: 0,
             ).format(minPrice),
             NumberFormat.currency(
               locale: 'id_ID',
-              symbol: 'Rp ',
+              symbol: 'Rp. ', // ← UBAH: dari 'Rp ' menjadi 'Rp. '
               decimalDigits: 0,
             ).format(maxPrice),
           ),
@@ -1022,7 +1074,7 @@ class _ShopPageState extends State<ShopPage> with TickerProviderStateMixin {
           child: TextField(
             controller: _searchController,
             decoration: InputDecoration(
-              hintText: 'Cari produk...',
+              hintText: 'Search',
               prefixIcon: const Icon(Icons.search, color: Color(0xFF4B4ACF)),
               suffixIcon:
                   _searchController.text.isNotEmpty
@@ -1048,7 +1100,10 @@ class _ShopPageState extends State<ShopPage> with TickerProviderStateMixin {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.filter_list, color: Color(0xFF4B4ACF)),
+          icon: const Icon(
+            Icons.tune,
+            color: Color(0xFF4B4ACF),
+          ), // ← PERUBAHAN: filter_list → tune
           onPressed: _openFilterModal,
         ),
       ),
